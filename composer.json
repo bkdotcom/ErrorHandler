@@ -1,0 +1,33 @@
+{
+	"name": "bdk/errorhandler",
+	"description": "Event Emitting ErrorHandler",
+	"keywords": ["errorhandler", "error", "exception"],
+	"homepage": "http://github.com/bkdotcom/ErrorHandler",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Brad Kent",
+			"email": "bkfake-github@yahoo.com",
+			"homepage": "http://www.bradkent.com/",
+			"role": "Developer"
+		}
+	],
+	"autoload": {
+		"classmap": [
+			"src/ErrorHandler.php"
+		],
+		"psr-4": {
+			"bdk\\ErrorHandler\\": "src/"
+		}
+	},
+	"autoload-dev": {
+		"classmap": ["tests"]
+	},
+	"require": {
+		"php": ">=5.4.0",
+		"bdk/pubsub": "~2.0"
+	},
+	"require-dev": {
+		"bdk/css-xpath": "^1.0"
+	}
+}
