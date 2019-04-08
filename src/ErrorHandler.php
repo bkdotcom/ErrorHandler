@@ -3,7 +3,7 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2018 Brad Kent
+ * @copyright 2014-2019 Brad Kent
  * @version   v2.3
  */
 
@@ -54,6 +54,12 @@ class ErrorHandler
         'warning'       => array( E_WARNING, E_CORE_WARNING, E_COMPILE_WARNING, E_USER_WARNING ),
         'fatal'         => array( E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR ),
     );
+    protected $userErrors = array(
+        E_USER_DEPRECATED,
+        E_USER_ERROR,
+        E_USER_NOTICE,
+        E_USER_WARNING,
+    );
     protected $registered = false;
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
@@ -73,8 +79,8 @@ class ErrorHandler
         $this->cfg = array(
             'continueToPrevHandler' => true,    // whether to continue to previously defined handler (if there is/was a prev error handler)
                                                 //   will not continue if error event propagation stopped
-            'errorReporting' => E_ALL,          // what errors are handled by handler? bitmask or "system" to use runtime value
-                                                //   note that if using "system", suppressed errors (via @ operator) will not be handled (we'll still handle fatal category)
+            'errorReporting' => E_ALL | E_STRICT,   // what errors are handled by handler? bitmask or "system" to use runtime value
+                                                    //   note that if using "system", suppressed errors (via @ operator) will not be handled (we'll still handle fatal category)
             // shortcut for subscribing to errorHandler.error Event
             //   will receive error Event object
             'onError' => null,
@@ -145,7 +151,7 @@ class ErrorHandler
             // backtrace unavailable
             $backtrace = array();
         } else {
-            $backtrace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
+            $backtrace = \debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
         }
         return $this->normalizeTrace($backtrace);
@@ -332,6 +338,9 @@ class ErrorHandler
             return;
         }
         $error = $event['error'] ?: \error_get_last();
+        if (!$error) {
+            return;
+        }
         if (\in_array($error['type'], $this->errCategories['fatal'])) {
             /*
                 found in wild:
@@ -340,8 +349,17 @@ class ErrorHandler
                 but error_reporting() will return 0 due to the @ operator
                 unsupress fatal error here
             */
-            \error_reporting(E_ALL);
+            \error_reporting(E_ALL | E_STRICT);
             $this->handleError($error['type'], $error['message'], $error['file'], $error['line']);
+        }
+        /*
+            Find the fatal error/uncaught-exception and attach to shutdown event
+        */
+        foreach ($this->data['errors'] as $error) {
+            if ($error['category'] === 'fatal') {
+                $event['error'] = $error;
+                break;
+            }
         }
         return;
     }
@@ -436,7 +454,7 @@ class ErrorHandler
     {
         if ($caller === null) {
             $backtrace = \version_compare(PHP_VERSION, '5.4.0', '>=')
-                ? \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS, $offset + 3)
+                ? \debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $offset + 3)
                 : \debug_backtrace(false);   // don't provide object
             $i = isset($backtrace[$offset+1])
                 ? $offset + 1
@@ -609,11 +627,16 @@ class ErrorHandler
             'exception' => $this->uncaughtException,  // non-null if error is uncaught-exception
             'hash'          => null,
             'isFirstOccur'  => true,
+            'isHtml'        => \filter_var(\ini_get('html_errors'), FILTER_VALIDATE_BOOLEAN)
+                && !\in_array($errType, $this->userErrors) && !$this->uncaughtException,
             'isSuppressed'  => false,
         );
         $hash = $this->errorHash($errorValues);
         $isFirstOccur = !isset($this->data['errors'][$hash]);
         // if any instance of this error was not supprssed, reflect that
+        if ($errorValues['isHtml']) {
+            $errorValues['message'] = \str_replace('<a ', '<a target="phpRef" ', $errorValues['message']);
+        }
         $isSuppressed = !$isFirstOccur && !$this->data['errors'][$hash]['isSuppressed']
             ? false
             : \error_reporting() === 0;
