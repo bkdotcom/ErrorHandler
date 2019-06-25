@@ -4,11 +4,12 @@
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright 2014-2019 Brad Kent
- * @version   v2.3
+ * @version   v3.0
  */
 
 namespace bdk;
 
+use bdk\ErrorHandler\Error;
 use bdk\PubSub\Event;
 use bdk\PubSub\Manager as EventManager;
 use ReflectionObject;
@@ -26,45 +27,14 @@ class ErrorHandler
     protected $data = array(
         'errorCaller'   => array(),
         'errors'        => array(),
-        'lastError'     => null,
-    );
-    protected $errTypes = array(
-        E_ERROR             => 'Fatal Error',       // handled via shutdown function
-        E_WARNING           => 'Warning',
-        E_PARSE             => 'Parsing Error',     // handled via shutdown function
-        E_NOTICE            => 'Notice',
-        E_CORE_ERROR        => 'Core Error',        // handled via shutdown function
-        E_CORE_WARNING      => 'Core Warning',      // handled?
-        E_COMPILE_ERROR     => 'Compile Error',     // handled via shutdown function
-        E_COMPILE_WARNING   => 'Compile Warning',   // handled?
-        E_USER_ERROR        => 'User Error',
-        E_USER_WARNING      => 'User Warning',
-        E_USER_NOTICE       => 'User Notice',
-        E_ALL               => 'E_ALL',             // listed here for completeness
-        E_STRICT            => 'Runtime Notice (E_STRICT)', // php 5.0 :  2048
-        E_RECOVERABLE_ERROR => 'Recoverable Error',         // php 5.2 :  4096
-        E_DEPRECATED        => 'Deprecated',                // php 5.3 :  8192
-        E_USER_DEPRECATED   => 'User Deprecated',           // php 5.3 : 16384
-    );
-    protected $errCategories = array(
-        'deprecated'    => array( E_DEPRECATED, E_USER_DEPRECATED ),
-        'error'         => array( E_USER_ERROR, E_RECOVERABLE_ERROR ),
-        'notice'        => array( E_NOTICE, E_USER_NOTICE ),
-        'strict'        => array( E_STRICT ),
-        'warning'       => array( E_WARNING, E_CORE_WARNING, E_COMPILE_WARNING, E_USER_WARNING ),
-        'fatal'         => array( E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR ),
-    );
-    protected $userErrors = array(
-        E_USER_DEPRECATED,
-        E_USER_ERROR,
-        E_USER_NOTICE,
-        E_USER_WARNING,
+        'lastErrors'     => array(),    // contains up to two errors: suppressed & unsuppressed
+                                        // lastError[0] is the most recent error
+        'uncaughtException' => null,
     );
     protected $registered = false;
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
     protected $prevExceptionHandler = null;
-    protected $uncaughtException;
     private static $instance;
 
     /**
@@ -111,7 +81,7 @@ class ErrorHandler
      *
      * To get trace from within shutdown function utilizes xdebug_get_function_stack() if available
      *
-     * @param array|Event|Exception $error (optional) error details if getting error backtrace
+     * @param Error|Exception $error (optional) error details if getting error backtrace
      *
      * @return array
      */
@@ -121,10 +91,9 @@ class ErrorHandler
         $isFatalError = false;
         if ($error instanceof \Exception) {
             $exception = $error;
-        } elseif ($error) {
-            // array or Event
+        } elseif ($error instanceof Error) {
             $exception = $error['exception'];
-            $isFatalError = \in_array($error['type'], $this->errCategories['fatal']);
+            $isFatalError = $error->isFatal();
         }
         if ($exception) {
             $backtrace = $exception->getTrace();
@@ -160,16 +129,20 @@ class ErrorHandler
     /**
      * Retrieve a data value or property
      *
-     * @param string $key what to get
+     * @param string $key  what to get
+     * @param string $hash if key == 'error', specify error hash
      *
      * @return mixed
      */
-    public function get($key = null)
+    public function get($key = null, $hash = null)
     {
+        if ($key == 'error') {
+            return isset($this->data['errors'][$hash])
+                ? $this->data['errors'][$hash]
+                : false;
+        }
         if ($key == 'lastError') {
-            return isset($this->data['lastError'])
-                ? $this->data['lastError']->getValues()
-                : null;
+            return $this->getLastError();
         }
         if (isset($this->data[$key])) {
             return $this->data[$key];
@@ -194,6 +167,28 @@ class ErrorHandler
         }
         if (isset($this->cfg[$key])) {
             return $this->cfg[$key];
+        }
+        return null;
+    }
+
+    /**
+     * Get information about last error
+     *
+     * @param boolean $inclSuppressed (false)
+     *
+     * @return null|array
+     */
+    public function getLastError($inclSuppressed = false)
+    {
+        if (!$inclSuppressed) {
+            // (default) skip over suppressed error to find last non-suppressed
+            foreach ($this->data['lastErrors'] as $error) {
+                if (!$error['isSuppressed']) {
+                    return $error->getValues();
+                }
+            }
+        } elseif ($this->data['lastErrors']) {
+            return $this->data['lastErrors'][0]->getValues();
         }
         return null;
     }
@@ -230,43 +225,23 @@ class ErrorHandler
      */
     public function handleError($errType, $errMsg, $file, $line, $vars = array())
     {
-        $error = $this->buildError($errType, $errMsg, $file, $line, $vars);
-        $errorReporting = $this->cfg['errorReporting'] === 'system'
-            ? \error_reporting() // note:  will return 0 if error suppression is active in call stack (via @ operator)
-                                //  our shutdown function unsupresses fatal errors
-            : $this->cfg['errorReporting'];
-        $isHandledType = $errType & $errorReporting;
-        if (!$isHandledType) {
+        $error = new Error($this, $errType, $errMsg, $file, $line, $vars);
+        if (!$this->isErrTypeHandled($errType)) {
             // not handled
             //   if cfg['errorReporting'] == 'system', error could simply be suppressed
-            if ($error['continueToPrevHandler']) {
-                return \call_user_func(
-                    $this->prevErrorHandler,
-                    $error['type'],
-                    $error['message'],
-                    $error['file'],
-                    $error['line'],
-                    $vars
-                );
-            }
-            return false;   // return false to continue to "normal" error handler
+            // return false to continue to "normal" error handler
+            return $this->continueToPrev($error);
         }
+        $this->storeLastError($error);
         if (!$error['isSuppressed']) {
-            // suppressed error should not clear error caller
-            $this->data['lastError'] = $error;
+            // only clear error caller via non-suppressed error
             $this->data['errorCaller'] = array();
+            // only publish event for non-suppressed error
             $this->eventManager->publish('errorHandler.error', $error);
         }
         $this->data['errors'][ $error['hash'] ] = $error;
         if ($error['continueToPrevHandler'] && $this->prevErrorHandler && !$error->isPropagationStopped()) {
-            return \call_user_func(
-                $this->prevErrorHandler,
-                $error['type'],
-                $error['message'],
-                $error['file'],
-                $error['line'],
-                $vars
-            );
+            return $this->continueToPrev($error);
         }
         if (\in_array($error['type'], array(E_USER_ERROR, E_RECOVERABLE_ERROR))) {
             $this->onUserError($error);
@@ -282,7 +257,7 @@ class ErrorHandler
     /**
      * Handle uncaught exceptions
      *
-     * This isn't strictly necesssary...  uncaught exceptions  are a fatal error, which we can handle...
+     * This isn't strictly necesssary...  uncaught exceptions are a fatal error, which we can handle...
      * However..  An backtrace sure is nice...
      *    a) catching backtrace via shutdown function only possible if xdebug installed
      *    b) xdebug_get_function_stack's magic doesn't seem to powerless for uncaught exceptions!
@@ -294,7 +269,7 @@ class ErrorHandler
     public function handleException($exception)
     {
         // lets store the exception so we can use the backtrace it provides
-        $this->uncaughtException = $exception;
+        $this->data['uncaughtException'] = $exception;
         \http_response_code(500);
         $this->handleError(
             E_ERROR,
@@ -302,23 +277,10 @@ class ErrorHandler
             $exception->getFile(),
             $exception->getLine()
         );
-        $this->uncaughtException = null;
+        $this->data['uncaughtException'] = null;
         if ($this->cfg['continueToPrevHandler'] && $this->prevExceptionHandler) {
             \call_user_func($this->prevErrorHandler, $exception);
         }
-    }
-
-    /**
-     * Send string to error_log()
-     *
-     * @param Event $error Error event to log
-     *
-     * @return boolean
-     */
-    public function log($error)
-    {
-        $str = 'PHP User Error:  '.$error['message'].' in '.$error['file'].' on line '.$error['line'];
-        return \error_log($str);
     }
 
     /**
@@ -341,7 +303,10 @@ class ErrorHandler
         if (!$error) {
             return;
         }
-        if (\in_array($error['type'], $this->errCategories['fatal'])) {
+        if (\is_array($error)) {
+            $error = new Error($this, $error['type'], $error['message'], $error['file'], $error['line']);
+        }
+        if ($error->isFatal()) {
             /*
                 found in wild:
                 @include(some_file_with_parse_error)
@@ -384,15 +349,13 @@ class ErrorHandler
     /**
      * Set one or more config values
      *
-     * If setting a single value via method a or b, old value is returned
-     *
      *    setCfg('key', 'value')
      *    setCfg(array('k1'=>'v1', 'k2'=>'v2'))
      *
      * @param string $mixed  key=>value array or key
      * @param mixed  $newVal value
      *
-     * @return mixed
+     * @return mixed old value(s)
      */
     public function setCfg($mixed, $newVal = null)
     {
@@ -407,6 +370,7 @@ class ErrorHandler
                 $key => $newVal,
             );
         } elseif (\is_array($mixed)) {
+            $ret = \array_intersect_key($this->cfg, $mixed);
             $values = $mixed;
         }
         if (isset($values['onError'])) {
@@ -545,6 +509,45 @@ class ErrorHandler
     }
 
     /**
+     * Pass error to prevErrorHandler (if there was one)
+     *
+     * @param Error $error Error instance
+     *
+     * @return boolean
+     */
+    protected function continueToPrev(Error $error)
+    {
+        if (!$this->prevErrorHandler) {
+            return false;
+        }
+        return \call_user_func(
+            $this->prevErrorHandler,
+            $error['type'],
+            $error['message'],
+            $error['file'],
+            $error['line'],
+            $error['vars']
+        );
+    }
+
+    /**
+     * Test if error type is handled
+     *
+     * @param integer $errType error type
+     *
+     * @return boolean
+     */
+    protected function isErrTypeHandled($errType)
+    {
+        $errorReporting = $this->cfg['errorReporting'] === 'system'
+            ? \error_reporting() // note:  will return 0 if error suppression is active in call stack (via @ operator)
+                                //  our shutdown function unsupresses fatal errors
+            : $this->cfg['errorReporting'];
+        $isHandledType = $errType & $errorReporting;
+        return $isHandledType;
+    }
+
+    /**
      * "Normalize" backtrace from debug_backtrace() or xdebug_get_function_stack();
      *
      * @param array $backtrace trace/stack from debug_backtrace() or xdebug_Get_function_stack()
@@ -593,102 +596,15 @@ class ErrorHandler
     }
 
     /**
-     * Build error object
-     *
-     * Error object is simply an event object
-     *
-     * @param integer $errType the level of the error
-     * @param string  $errMsg  the error message
-     * @param string  $file    filepath the error was raised in
-     * @param string  $line    the line the error was raised in
-     * @param array   $vars    active symbol table at point error occured
-     *
-     * @return Event
-     */
-    protected function buildError($errType, $errMsg, $file, $line, $vars)
-    {
-        // determine $category
-        foreach ($this->errCategories as $category => $errTypes) {
-            if (\in_array($errType, $errTypes)) {
-                break;
-            }
-        }
-        $errorValues = array(
-            'type'      => $errType,                    // int
-            'typeStr'   => $this->errTypes[$errType],   // friendly string version of 'type'
-            'category'  => $category,
-            'message'   => $errMsg,
-            'file'      => $file,
-            'line'      => $line,
-            'vars'      => $vars,
-            'backtrace' => array(), // only for fatal type errors, and only if xdebug is enabled
-            'continueToNormal' => false,    // aka, let PHP do its thing (log error)
-            'continueToPrevHandler' => $this->cfg['continueToPrevHandler'] && $this->prevErrorHandler,
-            'exception' => $this->uncaughtException,  // non-null if error is uncaught-exception
-            'hash'          => null,
-            'isFirstOccur'  => true,
-            'isHtml'        => \filter_var(\ini_get('html_errors'), FILTER_VALIDATE_BOOLEAN)
-                && !\in_array($errType, $this->userErrors) && !$this->uncaughtException,
-            'isSuppressed'  => false,
-        );
-        $hash = $this->errorHash($errorValues);
-        $isFirstOccur = !isset($this->data['errors'][$hash]);
-        // if any instance of this error was not supprssed, reflect that
-        if ($errorValues['isHtml']) {
-            $errorValues['message'] = \str_replace('<a ', '<a target="phpRef" ', $errorValues['message']);
-        }
-        $isSuppressed = !$isFirstOccur && !$this->data['errors'][$hash]['isSuppressed']
-            ? false
-            : \error_reporting() === 0;
-        if (!empty($this->data['errorCaller'])) {
-            $errorValues['file'] = $this->data['errorCaller']['file'];
-            $errorValues['line'] = $this->data['errorCaller']['line'];
-        }
-        if (\in_array($errType, array(E_ERROR, E_USER_ERROR))) {
-            // will return empty unless xdebug extension installed/enabled
-            $errorValues['backtrace'] = $this->backtrace($errorValues);
-        }
-        $errorValues = \array_merge($errorValues, array(
-            'continueToNormal' => !$isSuppressed && $isFirstOccur,
-            'hash' => $hash,
-            'isFirstOccur' => $isFirstOccur,
-            'isSuppressed' => $isSuppressed,
-        ));
-        return new Event($this, $errorValues);
-    }
-
-    /**
-     * Generate hash used to uniquely identify this error
-     *
-     * @param array $errorValues error array
-     *
-     * @return string hash
-     */
-    protected function errorHash($errorValues)
-    {
-        $errMsg = $errorValues['message'];
-        // (\(.*?)\d+(.*?\))    "(tried to allocate 16384 bytes)" -> "(tried to allocate xxx bytes)"
-        $errMsg = \preg_replace('/(\(.*?)\d+(.*?\))/', '\1x\2', $errMsg);
-        // "blah123" -> "blahxxx"
-        $errMsg = \preg_replace('/\b([a-z]+\d+)+\b/', 'xxx', $errMsg);
-        // "-123.123" -> "xxx"
-        $errMsg = \preg_replace('/\b[\d.-]{4,}\b/', 'xxx', $errMsg);
-        // remove "comments"..  this allows throttling email, while still adding unique info to user errors
-        $errMsg = \preg_replace('/\s*##.+$/', '', $errMsg);
-        $hash = \md5($errorValues['file'].$errorValues['line'].$errorValues['type'].$errMsg);
-        return $hash;
-    }
-
-    /**
      * Handle E_USER_ERROR
      *
      * Should script terminate, or continue?
      *
-     * @param Event $error errorHandler.error event
+     * @param Error $error Errorinstance
      *
      * @return void
      */
-    protected function onUserError(Event $error)
+    protected function onUserError(Error $error)
     {
         switch ($this->cfg['onEUserError']) {
             case 'continue':
@@ -697,7 +613,7 @@ class ErrorHandler
             case 'log':
                 // log the error, but continue script
                 if (!$error->isPropagationStopped() && $error['continueToNormal']) {
-                    $this->log($error);
+                    $error->log();
                 }
                 $error['continueToNormal'] = false;
                 break;
@@ -712,5 +628,23 @@ class ErrorHandler
                     script will be halted
                 */
         }
+    }
+
+    /**
+     * Store last error
+     *
+     * We store up to two errors...  so that we can return last suppressed error (if desired)
+     *
+     * @param Error $error error instance
+     *
+     * @return void
+     */
+    private function storeLastError(Error $error)
+    {
+        $this->data['lastErrors'] = \array_filter($this->data['lastErrors'], function (Error $error) {
+            return !$error['isSuppressed'];
+        });
+        $this->data['lastErrors'] = \array_slice($this->data['lastErrors'], 0, 1);
+        \array_unshift($this->data['lastErrors'], $error);
     }
 }
