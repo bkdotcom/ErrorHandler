@@ -1,5 +1,7 @@
 <?php
 
+use bdk\ErrorHandler\Error;
+
 /**
  * PHPUnit tests
  */
@@ -30,18 +32,18 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         parent::tearDown();
     }
 
-    public function onError(\bdk\PubSub\Event $event)
+    public function onError(Error $error)
     {
         foreach ($this->onErrorUpdate as $k => $v) {
             if ($k == 'stopPropagation') {
                 if ($v) {
-                    $event->stopPropagation();
+                    $error->stopPropagation();
                 }
                 continue;
             }
-            $event->setValue($k, $v);
+            $error->setValue($k, $v);
         }
-        $this->onErrorEvent = $event;
+        $this->onErrorEvent = $error;
         $this->onErrorUpdate = array();
     }
 
@@ -57,7 +59,8 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         $this->assertSame(array(
             'errorCaller'   => array(),
             'errors'        => array(),
-            'lastError'     => null,
+            'lastErrors'    => array(),
+            'uncaughtException' => null,
         ), $this->errorHandler->get('data'));
     }
 
@@ -241,18 +244,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'message' => 'Oh noes!',
         );
 
-        $errorHandler = $this->getMockBuilder(get_class($this->errorHandler))
-             ->setConstructorArgs(array(
-                $this->errorHandler->eventManager,
-                array(
-                    'continueToPrevHandler' => false,   // prev handler is the non-mockeded handler
-                ),
-              ))
-             ->setMethods(['log'])
-             ->getMock();
-        $errorHandler->expects($this->once())
-            ->method('log');
-
+        $errorHandler = $this->errorHandler;
         $callable = array($errorHandler, 'handleError');
         $errorParams = array($error['type'], $error['message'], $error['file'], $error['line'], $error['vars']);
 
@@ -265,12 +257,33 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         $this->assertTrue($return);
 
         $errorHandler->setCfg('onEUserError', 'log');
+        $errorHandler->setCfg('errorFactory', function ($handler, $errType, $errMsg, $file, $line, $vars) {
+            $error = $this->getMockBuilder('\\bdk\\ErrorHandler\\Error')->setConstructorArgs(array(
+                $handler, $errType, $errMsg, $file, $line, $vars
+            ))
+                 ->setMethods(['log'])
+                 ->getMock();
+            $error->expects($this->once())
+                ->method('log');
+            return $error;
+        });
         $this->onErrorUpdate = array('continueToNormal' => true);
         $return = call_user_func_array($callable, $errorParams);
         $this->assertTrue($return);
         $this->onErrorUpdate = array('continueToNormal' => false);
+        $errorHandler->setCfg('errorFactory', function ($handler, $errType, $errMsg, $file, $line, $vars) {
+            $error = $this->getMockBuilder('\\bdk\\ErrorHandler\\Error')->setConstructorArgs(array(
+                $handler, $errType, $errMsg, $file, $line, $vars
+            ))
+                 ->setMethods(['log'])
+                 ->getMock();
+            $error->expects($this->never())
+                ->method('log');
+            return $error;
+        });
         $return = call_user_func_array($callable, $errorParams);
         $this->assertTrue($return);
+        $errorHandler->setCfg('errorFactory', array($errorHandler, 'errorFactory'));
 
         $errorHandler->setCfg('onEUserError', 'normal');
         $this->onErrorUpdate = array('continueToNormal' => true);

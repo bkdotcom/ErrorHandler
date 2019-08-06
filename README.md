@@ -19,3 +19,11 @@ See http://www.bradkent.com/php/errorhandler for more information
 ### Usage
 
 See http://www.bradkent.com/php/errorhandler
+
+### Tests / Quality
+![No Dependencies](https://img.shields.io/badge/dependencies-none-333333.svg)
+[![Build Status](https://img.shields.io/travis/bkdotcom/ErrorHandler/master.svg)](https://travis-ci.org/bkdotcom/ErrorHandler)
+
+### Changelog
+http://www.bradkent.com/php/errorhandler#changelog
+

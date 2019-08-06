@@ -12,6 +12,7 @@ namespace bdk;
 use bdk\ErrorHandler\Error;
 use bdk\PubSub\Event;
 use bdk\PubSub\Manager as EventManager;
+use ReflectionClass;
 use ReflectionObject;
 
 /**
@@ -31,6 +32,7 @@ class ErrorHandler
                                         // lastError[0] is the most recent error
         'uncaughtException' => null,
     );
+    protected $inShutdown = false;
     protected $registered = false;
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
@@ -49,6 +51,7 @@ class ErrorHandler
         $this->cfg = array(
             'continueToPrevHandler' => true,    // whether to continue to previously defined handler (if there is/was a prev error handler)
                                                 //   will not continue if error event propagation stopped
+            'errorFactory' => array($this, 'errorFactory'),
             'errorReporting' => E_ALL | E_STRICT,   // what errors are handled by handler? bitmask or "system" to use runtime value
                                                     //   note that if using "system", suppressed errors (via @ operator) will not be handled (we'll still handle fatal category)
             // shortcut for subscribing to errorHandler.error Event
@@ -56,11 +59,11 @@ class ErrorHandler
             'onError' => null,
             'onEUserError' => 'normal', // only applicable if we're not continuing to a prev error handler
                                     // (continueToPrevHandler = false, there's no previous handler, or propagation stopped)
-                                    //   'continue' : forces continueToNormal = false (script will continue)
+                                    //   'continue' : forces error[continueToNormal] = false (script will continue)
                                     //   'log' : if propagation not stopped, call error_log()
                                     //         continue script execution
-                                    //   'normal' : forces continueToNormal = true;
-                                    //   null : use error's continueToNormal value
+                                    //   'normal' : forces error[continueToNormal] = true;
+                                    //   null : use error's error[continueToNormal] value
         );
         // Initialize self::$instance if not set
         //    so that self::getInstance() will always return original instance
@@ -81,19 +84,17 @@ class ErrorHandler
      *
      * To get trace from within shutdown function utilizes xdebug_get_function_stack() if available
      *
-     * @param Error|Exception $error (optional) error details if getting error backtrace
+     * @param Error|Exception $error (optional) Error instance if getting error backtrace
      *
      * @return array
      */
     public function backtrace($error = null)
     {
         $exception = null;
-        $isFatalError = false;
         if ($error instanceof \Exception) {
             $exception = $error;
         } elseif ($error instanceof Error) {
             $exception = $error['exception'];
-            $isFatalError = $error->isFatal();
         }
         if ($exception) {
             $backtrace = $exception->getTrace();
@@ -101,8 +102,11 @@ class ErrorHandler
                 'file' => $exception->getFile(),
                 'line' => $exception->getLine(),
             ));
-        } elseif ($isFatalError && \extension_loaded('xdebug')) {
-            $backtrace = \xdebug_get_function_stack();
+        } elseif ($this->inShutdown) {
+            if (!\extension_loaded('xdebug')) {
+                return array();
+            }
+            $backtrace = $this->xdebugGetFunctionStack();
             $backtrace = \array_reverse($backtrace);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
             $errorFileLine = array(
@@ -116,9 +120,6 @@ class ErrorHandler
             if (\array_intersect_assoc($errorFileLine, $backtrace[0]) !== $errorFileLine) {
                 \array_unshift($backtrace, $errorFileLine);
             }
-        } elseif ($isFatalError) {
-            // backtrace unavailable
-            $backtrace = array();
         } else {
             $backtrace = \debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
@@ -225,7 +226,7 @@ class ErrorHandler
      */
     public function handleError($errType, $errMsg, $file, $line, $vars = array())
     {
-        $error = new Error($this, $errType, $errMsg, $file, $line, $vars);
+        $error = $this->cfg['errorFactory']($this, $errType, $errMsg, $file, $line, $vars);
         if (!$this->isErrTypeHandled($errType)) {
             // not handled
             //   if cfg['errorReporting'] == 'system', error could simply be suppressed
@@ -296,6 +297,7 @@ class ErrorHandler
      */
     public function onShutdown(Event $event)
     {
+        $this->inShutdown = true;
         if (!$this->registered) {
             return;
         }
@@ -312,7 +314,7 @@ class ErrorHandler
                 @include(some_file_with_parse_error)
                 which will trigger a fatal error (here we are),
                 but error_reporting() will return 0 due to the @ operator
-                unsupress fatal error here
+                unsuppress fatal error here
             */
             \error_reporting(E_ALL | E_STRICT);
             $this->handleError($error['type'], $error['message'], $error['file'], $error['line']);
@@ -531,6 +533,23 @@ class ErrorHandler
     }
 
     /**
+     * Create Error instance
+     *
+     * @param self    $handler ErrorHandler instance
+     * @param integer $errType the level of the error
+     * @param string  $errMsg  the error message
+     * @param string  $file    filepath the error was raised in
+     * @param string  $line    the line the error was raised in
+     * @param array   $vars    active symbol table at point error occured
+     *
+     * @return Error
+     */
+    protected function errorFactory(self $handler, $errType, $errMsg, $file, $line, $vars)
+    {
+        return new Error($handler, $errType, $errMsg, $file, $line, $vars);
+    }
+
+    /**
      * Test if error type is handled
      *
      * @param integer $errType error type
@@ -646,5 +665,32 @@ class ErrorHandler
         });
         $this->data['lastErrors'] = \array_slice($this->data['lastErrors'], 0, 1);
         \array_unshift($this->data['lastErrors'], $error);
+    }
+
+    /**
+     * wrapper for xdebug_get_function_stack
+     * accounts for bug 1529 (may report incorrect file)
+     *
+     * @return array
+     * @see    https://bugs.xdebug.org/view.php?id=1529
+     */
+    protected function xdebugGetFunctionStack()
+    {
+        $stack = \xdebug_get_function_stack();
+        $xdebugVer = \phpversion('xdebug');
+        if (\version_compare($xdebugVer, '2.6.0', '<')) {
+            foreach ($stack as $i => $frame) {
+                $function = isset($frame['function'])
+                    ? $frame['function']
+                    : null;
+                if ($function === '__get') {
+                    // wrong file!
+                    $class = $stack[$i-1]['class'];
+                    $refClass = new ReflectionClass($class);
+                    $stack[$i]['file'] = $refClass->getFileName();
+                }
+            }
+        }
+        return $stack;
     }
 }
