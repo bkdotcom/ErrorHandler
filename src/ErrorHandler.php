@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
@@ -80,7 +81,7 @@ class ErrorHandler
     /**
      * Helper method to get backtrace
      *
-     * Utilizes xdebug_get_function_stack() (if available) to get backtrace in shutdown phase
+     * Utilizes `xdebug_get_function_stack()` (if available) to get backtrace in shutdown phase
      * When called internally, internal frames are removed
      *
      * @param Error|Exception $error (optional) Error instance if getting error backtrace
@@ -93,6 +94,7 @@ class ErrorHandler
         if ($error instanceof \Exception) {
             $exception = $error;
         } elseif ($error instanceof Error) {
+            // may be null
             $exception = $error['exception'];
         }
         if ($exception) {
@@ -105,7 +107,7 @@ class ErrorHandler
             if (!\extension_loaded('xdebug')) {
                 return array();
             }
-            $backtrace = $this->xdebugGetFunctionStack();
+            $backtrace = static::xdebugGetFunctionStack();
             $backtrace = \array_reverse($backtrace);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
             $errorFileLine = array(
@@ -123,7 +125,7 @@ class ErrorHandler
             $backtrace = \debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
         }
-        return $this->normalizeTrace($backtrace);
+        return static::normalizeTrace($backtrace);
     }
 
     /**
@@ -216,7 +218,7 @@ class ErrorHandler
      * @param integer $errType error lavel / type (one of PHP's E_* constants)
      * @param string  $errMsg  the error message
      * @param string  $file    filepath the error was raised in
-     * @param string  $line    the line the error was raised in
+     * @param integer $line    the line the error was raised in
      * @param array   $vars    active symbol table at point error occured
      *
      * @return boolean
@@ -262,7 +264,7 @@ class ErrorHandler
      *   * catching backtrace via shutdown function only possible if xdebug installed
      *   * xdebug_get_function_stack's magic seems powerless for uncaught exceptions!
      *
-     * @param Exception|Throwable $exception exception to handle
+     * @param \Exception|\Throwable $exception exception to handle
      *
      * @return void
      */
@@ -274,7 +276,7 @@ class ErrorHandler
         \http_response_code(500);
         $this->handleError(
             E_ERROR,
-            'Uncaught exception \''.\get_class($exception).'\' with message '.$exception->getMessage(),
+            'Uncaught exception \'' . \get_class($exception) . '\' with message ' . $exception->getMessage(),
             $exception->getFile(),
             $exception->getLine()
         );
@@ -306,7 +308,16 @@ class ErrorHandler
             return;
         }
         if (\is_array($error)) {
-            $error = new Error($this, $error['type'], $error['message'], $error['file'], $error['line']);
+            $error = $this->cfg['errorFactory'](
+                $this,
+                $error['type'],
+                $error['message'],
+                $error['file'],
+                $error['line'],
+                isset($error['vars'])
+                    ? $error['vars']
+                    : array()
+            );
         }
         if ($error->isFatal()) {
             /*
@@ -341,7 +352,7 @@ class ErrorHandler
         if ($this->registered) {
             return;
         }
-        $this->prevDisplayErrors = \ini_set('display_errors', 0);
+        $this->prevDisplayErrors = \ini_set('display_errors', '0');
         $this->prevErrorHandler = \set_error_handler(array($this, 'handleError'));
         $this->prevExceptionHandler = \set_exception_handler(array($this, 'handleException'));
         $this->registered = true;   // used by this->onShutdown()
@@ -354,8 +365,8 @@ class ErrorHandler
      *    `setCfg('key', 'value')`
      *    `setCfg(array('k1'=>'v1', 'k2'=>'v2'))`
      *
-     * @param string $mixed  key=>value array or key
-     * @param mixed  $newVal value
+     * @param string|array $mixed  key=>value array or key
+     * @param mixed        $newVal value
      *
      * @return mixed old value(s)
      */
@@ -422,12 +433,12 @@ class ErrorHandler
             $backtrace = \version_compare(PHP_VERSION, '5.4.0', '>=')
                 ? \debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $offset + 3)
                 : \debug_backtrace(false);   // don't provide object
-            $i = isset($backtrace[$offset+1])
+            $i = isset($backtrace[$offset + 1])
                 ? $offset + 1
                 : \count($backtrace) - 1;
             $caller = isset($backtrace[$i]['file'])
                 ? $backtrace[$i]
-                : $backtrace[$i+1]; // likely called via call_user_func.. need to go one more to get calling file & line
+                : $backtrace[$i + 1]; // likely called via call_user_func.. need to go one more to get calling file & line
             $caller = array(
                 'file' => $caller['file'],
                 'line' => $caller['line'],
@@ -499,7 +510,7 @@ class ErrorHandler
             */
             $refObj = new ReflectionObject($this->eventManager);
             $filepath = $refObj->getFilename();
-            while (isset($backtrace[$i+1]['file']) && $backtrace[$i+1]['file'] == $filepath) {
+            while (isset($backtrace[$i + 1]['file']) && $backtrace[$i + 1]['file'] == $filepath) {
                 $i++;
             }
         }
@@ -541,7 +552,7 @@ class ErrorHandler
      *
      * @return Error
      */
-    protected function errorFactory(self $handler, $errType, $errMsg, $file, $line, $vars)
+    protected function errorFactory(self $handler, $errType, $errMsg, $file, $line, $vars = array())
     {
         return new Error($handler, $errType, $errMsg, $file, $line, $vars);
     }
@@ -570,7 +581,7 @@ class ErrorHandler
      *
      * @return array
      */
-    protected function normalizeTrace($backtrace)
+    protected static function normalizeTrace($backtrace)
     {
         $backtraceNew = array();
         $frameDefault = array(
@@ -581,8 +592,8 @@ class ErrorHandler
             'type' => null,
         );
         $funcsSkip = array('call_user_func','call_user_func_array');
-        $funcsSkipRegex = '/^('.\implode('|', $funcsSkip).')[:\(\{]/';
-        for ($i = 0, $count=\count($backtrace); $i < $count; $i++) {
+        $funcsSkipRegex = '/^(' . \implode('|', $funcsSkip) . ')[:\(\{]/';
+        for ($i = 0, $count = \count($backtrace); $i < $count; $i++) {
             $frame = \array_merge($frameDefault, $backtrace[$i]);
             $frame = \array_intersect_key($frame, $frameDefault);
             if (\in_array($frame['function'], $funcsSkip) || \preg_match($funcsSkipRegex, $frame['function'])) {
@@ -600,7 +611,7 @@ class ErrorHandler
             } else {
                 $frame['function'] = \preg_match('/\{closure\}$/', $frame['function'])
                     ? $frame['function']
-                    : $frame['class'].$frame['type'].$frame['function'];
+                    : $frame['class'] . $frame['type'] . $frame['function'];
             }
             if (!$frame['function']) {
                 unset($frame['function']);
@@ -671,18 +682,20 @@ class ErrorHandler
      * @return array
      * @see    https://bugs.xdebug.org/view.php?id=1529
      */
-    protected function xdebugGetFunctionStack()
+    protected static function xdebugGetFunctionStack()
     {
         $stack = \xdebug_get_function_stack();
         $xdebugVer = \phpversion('xdebug');
         if (\version_compare($xdebugVer, '2.6.0', '<')) {
-            foreach ($stack as $i => $frame) {
+            $count = \count($stack);
+            for ($i = 0; $i < $count; $i++) {
+                $frame = $stack[$i];
                 $function = isset($frame['function'])
                     ? $frame['function']
                     : null;
                 if ($function === '__get') {
                     // wrong file!
-                    $prev = $stack[$i-1];
+                    $prev = $stack[$i - 1];
                     $stack[$i]['file'] = isset($prev['include_filename'])
                         ? $prev['include_filename']
                         : $prev['file'];
