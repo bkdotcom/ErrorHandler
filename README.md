@@ -22,3 +22,7 @@ See http://www.bradkent.com/php/errorhandler
 
 ### Tests / Quality
 [![Build Status](https://img.shields.io/travis/bkdotcom/ErrorHandler/master.svg)](https://travis-ci.org/bkdotcom/ErrorHandler)
+
+### Changelog
+http://www.bradkent.com/php/errorhandler#changelog
+

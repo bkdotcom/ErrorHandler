@@ -1,5 +1,11 @@
 <?php
 
+use bdk\ErrorHandler;
+use bdk\ErrorHandler\Error;
+use bdk\ErrorHandler\ErrorEmailer;
+use bdk\PubSub\Manager;
+use PHPUnit\Framework\Exception;
+
 class TestBase extends \PHPUnit\Framework\TestCase
 {
 
@@ -16,27 +22,27 @@ class TestBase extends \PHPUnit\Framework\TestCase
     {
         self::$allowError = false;
         if (!$this->errorHandler) {
-            $this->errorHandler = \bdk\ErrorHandler::getInstance();
+            $this->errorHandler = ErrorHandler::getInstance();
         }
         if (!$this->errorHandler) {
-            $eventManager = new \bdk\PubSub\Manager();
-            $this->errorHandler = new bdk\ErrorHandler($eventManager);
-            self::$errorEmailer = new bdk\ErrorHandler\ErrorEmailer();
+            $eventManager = new Manager();
+            $this->errorHandler = new ErrorHandler($eventManager);
+            self::$errorEmailer = new ErrorEmailer();
             $this->errorHandler->eventManager->subscribe('errorHandler.error', array(self::$errorEmailer, 'onErrorHighPri'), PHP_INT_MAX);
             $this->errorHandler->eventManager->subscribe('errorHandler.error', array(self::$errorEmailer, 'onErrorLowPri'), PHP_INT_MAX * -1);
-            $this->errorHandler->eventManager->subscribe('errorHandler.error', function (\bdk\PubSub\Event $event) {
+            $this->errorHandler->eventManager->subscribe('errorHandler.error', function (Error $error) {
                 if (self::$allowError) {
-                    $event['continueToNormal'] = false;
-                    $event['continueToPrevHandler'] = false;
+                    $error['continueToNormal'] = false;
+                    $error['continueToPrevHandler'] = false;
                     return;
                 }
-                $event['continueToPrevHandler'] = true;
-                throw new \PHPUnit\Framework\Exception($event['message'], 500);
+                $error['continueToPrevHandler'] = true;
+                throw new Exception($error['message'], 500);
             });
         }
         self::$errorEmailer->setCfg('emailTo', null);
         $this->errorHandler->setData('errors', array());
         $this->errorHandler->setData('errorCaller', array());
-        $this->errorHandler->setData('lastError', null);
+        $this->errorHandler->setData('lastErrors', array());
     }
 }

@@ -26,9 +26,9 @@ class ErrorEmailerTest extends TestBase
             'emailFunc' => array($this, 'emailMock'),
         ));
 
-        $this->expectedSubject = 'Error: '.implode(' ', $_SERVER['argv']).': Division by zero';
+        $this->expectedSubject = 'Error: ' . implode(' ', $_SERVER['argv']) . ': Division by zero';
         for ($i = 1; $i <= 2; $i++) {
-            1/0; // warning
+            1 / 0; // warning
             if ($i == 1) {
                 $this->assertSame(1, $this->emailCalledCount);
             } elseif ($i == 2) {
@@ -43,15 +43,15 @@ class ErrorEmailerTest extends TestBase
         $this->assertSame(self::$errorEmailer->getCfg('emailTo'), $toAddr);
         $this->assertSame($this->expectedSubject, $subject);
         $this->assertStringMatchesFormat(
-            'datetime: %s (%s)'."\n"
-            .'errormsg: Division by zero'."\n"
-            .'errortype: 2 (Warning)'."\n"
-            .'file: %s/tests/'.basename(__FILE__)."\n"
-            .'line: %d'."\n"
-            ."\n"
-            .'backtrace: array('."\n"
-            .'%a'
-            .')',
+            'datetime: %s (%s)' . "\n"
+            . 'errormsg: Division by zero' . "\n"
+            . 'errortype: 2 (Warning)' . "\n"
+            . 'file: %s/tests/' . basename(__FILE__) . "\n"
+            . 'line: %d' . "\n"
+            . "\n"
+            . 'backtrace: array(' . "\n"
+            . '%a'
+            . ')',
             $body
         );
     }

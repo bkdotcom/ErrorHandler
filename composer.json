@@ -25,7 +25,7 @@
 	},
 	"require": {
 		"php": ">=5.4.0",
-		"bdk/pubsub": "~2.0"
+		"bdk/pubsub": "~2.3"
 	},
 	"require-dev": {
 		"bdk/css-xpath": "^1.0"
