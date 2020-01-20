@@ -107,7 +107,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'isSuppressed'  => false,
         );
         $callLine = __LINE__ + 1;
-        $this->errorHandler->eventManager->publish('php.shutdown', null, array('error'=>$error));
+        $this->errorHandler->eventManager->publish('php.shutdown', null, array('error' => $error));
         $lastError = $this->errorHandler->get('lastError');
         $this->assertArraySubset($errorValuesExpect, $lastError);
         // test subscriber
@@ -116,16 +116,21 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         $this->assertArraySubset($errorValuesExpect, $this->onErrorEvent->getValues());
         if (extension_loaded('xdebug')) {
             $backtrace = $this->onErrorEvent['backtrace'];
+            $lines = \array_merge(array(null), \file($error['file']));
+            $lines = \array_slice($lines, $error['line'] - 9, 19, true);
             $this->assertSame(array(
                 'file' => $error['file'],
                 'line' => $error['line'],
+                'args' => array(),
+                'evalLine' => null,
+                'context' => $lines,
             ), $backtrace[0]);
             $this->assertSame(array(
                 'file' => $error['file'],
                 'line' => $callLine,
                 'function' => 'bdk\PubSub\Manager->publish',
-            ), $backtrace[1]);
-            $this->assertSame(__CLASS__.'->'.__FUNCTION__, $backtrace[2]['function']);
+            ), array_intersect_key($backtrace[1], array_flip(array('file','line','function'))));
+            $this->assertSame(__CLASS__ . '->' . __FUNCTION__, $backtrace[2]['function']);
         }
     }
 
@@ -141,7 +146,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'type' => E_WARNING,
             'file' => __FILE__,
             'line' => __LINE__,
-            'vars' => array('foo'=>'bar'),
+            'vars' => array('foo' => 'bar'),
             'message' => 'test warmomg',
         );
         $errorValuesExpect = array(
@@ -152,7 +157,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'file'      => $error['file'],
             'line'      => $error['line'],
             'vars'      => $error['vars'],
-            'backtrace' => array(), // only for fatal type errors, and only if xdebug is enabled
+            // 'backtrace' => array(), // only for fatal type errors, and only if xdebug is enabled
             'continueToNormal' => false,   // set to false via DebugTestFramework error subscriber
             'exception' => null,  // non-null if error is uncaught-exception
             // 'hash'      => null,
@@ -169,7 +174,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         );
         $this->assertTrue($return);
         $lastError = $this->errorHandler->get('lastError');
-        $this->assertArraySubset($errorValuesExpect, $lastError);
+        $this->assertArraySubset($errorValuesExpect, $lastError->getValues());
         // test subscriber
         $this->assertInstanceOf('bdk\\PubSub\\Event', $this->onErrorEvent);
         $this->assertSame($this->errorHandler, $this->onErrorEvent->getSubject());
@@ -240,7 +245,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'type' => E_USER_ERROR,
             'file' => __FILE__,
             'line' => __LINE__,
-            'vars' => array('foo'=>'bar'),
+            'vars' => array('foo' => 'bar'),
             'message' => 'Oh noes!',
         );
 

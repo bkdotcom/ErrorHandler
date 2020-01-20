@@ -13,6 +13,7 @@ namespace bdk;
 use bdk\ErrorHandler\Error;
 use bdk\PubSub\Event;
 use bdk\PubSub\Manager as EventManager;
+use Exception;
 use ReflectionClass;
 use ReflectionObject;
 
@@ -34,6 +35,7 @@ class ErrorHandler
         'uncaughtException' => null,    // error constructor will pull this
     );
     protected $inShutdown = false;
+    protected $shutdownError;   // array from error_get_last()
     protected $registered = false;
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
@@ -84,19 +86,13 @@ class ErrorHandler
      * Utilizes `xdebug_get_function_stack()` (if available) to get backtrace in shutdown phase
      * When called internally, internal frames are removed
      *
-     * @param Error|Exception $error (optional) Error instance if getting error backtrace
+     * @param Exception $exception (optional) Exception from which to get backtrace
+     * @param boolean   $inclArgs  (false) whether to include arguments
      *
      * @return array
      */
-    public function backtrace($error = null)
+    public function backtrace(Exception $exception = null, $inclArgs = false)
     {
-        $exception = null;
-        if ($error instanceof \Exception) {
-            $exception = $error;
-        } elseif ($error instanceof Error) {
-            // may be null
-            $exception = $error['exception'];
-        }
         if ($exception) {
             $backtrace = $exception->getTrace();
             \array_unshift($backtrace, array(
@@ -111,8 +107,8 @@ class ErrorHandler
             $backtrace = \array_reverse($backtrace);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
             $errorFileLine = array(
-                'file' => $error['file'],
-                'line' => $error['line'],
+                'file' => $this->shutdownError['file'],
+                'line' => $this->shutdownError['line'],
             );
             \array_pop($backtrace);   // pointless entry that xdebug_get_function_stack() includes
             if (empty($backtrace)) {
@@ -122,10 +118,57 @@ class ErrorHandler
                 \array_unshift($backtrace, $errorFileLine);
             }
         } else {
-            $backtrace = \debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+            $backtrace = \debug_backtrace($inclArgs ? null : DEBUG_BACKTRACE_IGNORE_ARGS);
             $backtrace = $this->backtraceRemoveInternal($backtrace);
         }
         return static::normalizeTrace($backtrace);
+    }
+
+    /**
+     * Get lines surrounding error
+     *
+     * @param array   $backtrace backtrace frames
+     * @param integer $length    number of lines to include
+     *
+     * @return array
+     */
+    public function backtraceAddContext($backtrace, $length = 19)
+    {
+        if ($length <= 0) {
+            $length = 19;
+        }
+        $sub = \floor($length  / 2);
+        foreach ($backtrace as $i => $frame) {
+            $backtrace[$i]['context'] = \file_exists($frame['file'])
+                ? $this->getFileLines($frame['file'], \max($frame['line'] - $sub, 0), $length)
+                : null;
+        }
+        return $backtrace;
+    }
+
+    /**
+     * Get lines from a file
+     *
+     * @param string  $file   filepath
+     * @param integer $start  line to start on (1-indexed; 1 = line; 1 = first line)
+     *                         0 also = first line
+     * @param integer $length number of lines to return
+     *
+     * @return array
+     */
+    private function getFileLines($file, $start = 1, $length = null)
+    {
+        $start  = (int) $start;
+        $length = (int) $length;
+        $lines = \array_merge(array(null), \file($file));
+        if ($start === 0) {
+            $start = 1;
+        }
+        if ($start > 1 || $length) {
+            // Get a subset of lines from $start to $end
+            $lines = \array_slice($lines, $start, $length, true);
+        }
+        return $lines;
     }
 
     /**
@@ -178,7 +221,7 @@ class ErrorHandler
      *
      * @param boolean $inclSuppressed (false)
      *
-     * @return null|array
+     * @return Error|null
      */
     public function getLastError($inclSuppressed = false)
     {
@@ -186,11 +229,11 @@ class ErrorHandler
             // (default) skip over suppressed error to find last non-suppressed
             foreach ($this->data['lastErrors'] as $error) {
                 if (!$error['isSuppressed']) {
-                    return $error->getValues();
+                    return $error;
                 }
             }
         } elseif ($this->data['lastErrors']) {
-            return $this->data['lastErrors'][0]->getValues();
+            return $this->data['lastErrors'][0];
         }
         return null;
     }
@@ -253,7 +296,7 @@ class ErrorHandler
      *   * catching backtrace via shutdown function only possible if xdebug installed
      *   * xdebug_get_function_stack's magic seems powerless for uncaught exceptions!
      *
-     * @param \Exception|\Throwable $exception exception to handle
+     * @param Exception|\Throwable $exception exception to handle
      *
      * @return void
      */
@@ -293,19 +336,7 @@ class ErrorHandler
         if (!$error) {
             return;
         }
-        if (\is_array($error)) {
-            $error = $this->cfg['errorFactory'](
-                $this,
-                $error['type'],
-                $error['message'],
-                $error['file'],
-                $error['line'],
-                isset($error['vars'])
-                    ? $error['vars']
-                    : array()
-            );
-        }
-        if ($error->isFatal()) {
+        if ($error['type'] & (E_ERROR | E_PARSE | E_COMPILE_ERROR | E_CORE_ERROR)) {
             /*
                 found in wild:
                 @include(some_file_with_parse_error)
@@ -314,15 +345,18 @@ class ErrorHandler
                 unsuppress fatal error here
             */
             \error_reporting(E_ALL | E_STRICT);
-            $this->handleError($error['type'], $error['message'], $error['file'], $error['line']);
-        }
-        /*
-            Find the fatal error/uncaught-exception and attach to shutdown event
-        */
-        foreach ($this->data['errors'] as $error) {
-            if ($error['category'] === 'fatal') {
-                $event['error'] = $error;
-                break;
+            $this->shutdownError = $error;
+            $this->handleError($error['type'], $error['message'], $error['file'], $error['line'], isset($error['vars'])
+                ? $error['vars']
+                : array());
+            /*
+                Find the fatal error/uncaught-exception and attach to shutdown event
+            */
+            foreach ($this->data['errors'] as $error) {
+                if ($error['category'] === 'fatal') {
+                    $event['error'] = $error;
+                    break;
+                }
             }
         }
         return;
@@ -337,6 +371,13 @@ class ErrorHandler
     {
         if ($this->registered) {
             return;
+        }
+        /*
+            xdebug.collect_params must collecting at runtime
+            changing just before calling xdebug_get_function_stack is insufficient
+        */
+        if (!\ini_get('xdebug.collect_params')) {
+            \ini_set('xdebug.collect_params', 3);
         }
         $this->prevDisplayErrors = \ini_set('display_errors', '0');
         $this->prevErrorHandler = \set_error_handler(array($this, 'handleError'));
@@ -510,6 +551,7 @@ class ErrorHandler
      * @param Error $error Error instance
      *
      * @return boolean
+     * @throws Exception
      */
     protected function continueToPrevHandler(Error $error)
     {
@@ -524,10 +566,11 @@ class ErrorHandler
             if (!$this->prevExceptionHandler) {
                 return !$error['continueToNormal'];
             }
-            return \call_user_func(
-                $this->prevExceptionHandler,
-                $error['exception']
-            );
+            /*
+                re-throw exception vs calling handler directly
+            */
+            \restore_exception_handler();
+            throw $error['exception'];
         } else {
             if (!$this->prevErrorHandler) {
                 return !$error['continueToNormal'];
@@ -590,9 +633,11 @@ class ErrorHandler
         $frameDefault = array(
             'file' => null,
             'line' => null,
-            'function' => null,
-            'class' => null,
-            'type' => null,
+            'function' => null,     // function, Class::function, or Class->function
+            'class' => null,        // will get removed
+            'type' => null,         // will get removed
+            'args' => array(),
+            'evalLine' => null,
         );
         $funcsSkip = array('call_user_func','call_user_func_array');
         $funcsSkipRegex = '/^(' . \implode('|', $funcsSkip) . ')[:\(\{]/';
@@ -608,15 +653,24 @@ class ErrorHandler
                 // xdebug_get_function_stack
                 $frame['type'] = $frame['type'] === 'dynamic' ? '->' : '::';
             }
+            if (\preg_match('/^(.+)\((\d+)\) : eval\(\)\'d code$/', $frame['file'], $matches)) {
+                // reported line = line within eval
+                // line inside paren is the line `eval` is on
+                $frame['evalLine'] = $frame['line'];
+                $frame['file'] = $matches[1];
+                $frame['line'] = (int) $matches[2];
+            }
+            if (isset($backtrace[$i]['params'])) {
+                $frame['args'] = $backtrace[$i]['params'];
+            }
             if (isset($backtrace[$i]['include_filename'])) {
                 // xdebug_get_function_stack
                 $frame['function'] = 'include or require';
-            } else {
+            } elseif ($frame['function']) {
                 $frame['function'] = \preg_match('/\{closure\}$/', $frame['function'])
                     ? $frame['function']
                     : $frame['class'] . $frame['type'] . $frame['function'];
-            }
-            if (!$frame['function']) {
+            } else {
                 unset($frame['function']);
             }
             unset($frame['class'], $frame['type']);
