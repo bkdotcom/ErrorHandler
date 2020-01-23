@@ -106,7 +106,6 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'isFirstOccur'  => true,
             'isSuppressed'  => false,
         );
-        $callLine = __LINE__ + 1;
         $this->errorHandler->eventManager->publish('php.shutdown', null, array('error' => $error));
         $lastError = $this->errorHandler->get('lastError');
         $this->assertArraySubset($errorValuesExpect, $lastError);
@@ -125,12 +124,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
                 'evalLine' => null,
                 'context' => $lines,
             ), $backtrace[0]);
-            $this->assertSame(array(
-                'file' => $error['file'],
-                'line' => $callLine,
-                'function' => 'bdk\PubSub\Manager->publish',
-            ), array_intersect_key($backtrace[1], array_flip(array('file','line','function'))));
-            $this->assertSame(__CLASS__ . '->' . __FUNCTION__, $backtrace[2]['function']);
+            $this->assertSame(__CLASS__ . '->' . __FUNCTION__, $backtrace[1]['function']);
         }
     }
 
@@ -212,16 +206,6 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'file' => __FILE__,
             'line' => __LINE__ - 4,
         ), $errorCaller);
-
-        /*
-        // this will use maximum debug_backtrace depth
-        call_user_func(array($this, 'setErrorCallerHelper'));
-        $errorCaller = $this->errorHandler->get('errorCaller');
-        $this->assertSame(array(
-            'file' => __FILE__,
-            'line' => __LINE__ - 4,
-        ), $errorCaller);
-        */
     }
 
     private function setErrorCallerHelper()
