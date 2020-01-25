@@ -106,6 +106,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'isFirstOccur'  => true,
             'isSuppressed'  => false,
         );
+        $callLine = __LINE__ + 1;
         $this->errorHandler->eventManager->publish('php.shutdown', null, array('error' => $error));
         $lastError = $this->errorHandler->get('lastError');
         $this->assertArraySubset($errorValuesExpect, $lastError);
@@ -114,12 +115,17 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         $this->assertSame($this->errorHandler, $this->onErrorEvent->getSubject());
         $this->assertArraySubset($errorValuesExpect, $this->onErrorEvent->getValues());
         if (extension_loaded('xdebug')) {
+            /*
+                passing the error in the php.shutdown event doesn't do anyting special to the backtrace
+                for a true error, the first frame of the trace would be the file/line of the error
+                here it's the file/line of the eventManager->publish
+            */
             $backtrace = $this->onErrorEvent['backtrace'];
             $lines = \array_merge(array(null), \file($error['file']));
-            $lines = \array_slice($lines, $error['line'] - 9, 19, true);
+            $lines = \array_slice($lines, $callLine - 9, 19, true);
             $this->assertSame(array(
                 'file' => $error['file'],
-                'line' => $error['line'],
+                'line' => $callLine,
                 'args' => array(),
                 'evalLine' => null,
                 'context' => $lines,
