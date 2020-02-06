@@ -4,7 +4,7 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2019 Brad Kent
+ * @copyright 2014-2020 Brad Kent
  * @version   v3.0
  */
 
@@ -14,9 +14,6 @@ use bdk\Backtrace;
 use bdk\ErrorHandler\Error;
 use bdk\PubSub\Event;
 use bdk\PubSub\Manager as EventManager;
-use Exception;
-use ReflectionClass;
-use ReflectionObject;
 
 /**
  * General-purpose error handler which supports fatal errors
@@ -78,7 +75,6 @@ class ErrorHandler
         $this->setCfg($cfg);
         $this->register();
         $this->eventManager->subscribe('php.shutdown', array($this, 'onShutdown'), PHP_INT_MAX);
-        return;
     }
 
     /**
@@ -91,12 +87,12 @@ class ErrorHandler
      */
     public function get($key = null, $hash = null)
     {
-        if ($key == 'error') {
+        if ($key === 'error') {
             return isset($this->data['errors'][$hash])
                 ? $this->data['errors'][$hash]
                 : false;
         }
-        if ($key == 'lastError') {
+        if ($key === 'lastError') {
             return $this->getLastError();
         }
         if (isset($this->data[$key])) {
@@ -129,7 +125,7 @@ class ErrorHandler
     /**
      * Get information about last error
      *
-     * @param boolean $inclSuppressed (false)
+     * @param bool $inclSuppressed (false)
      *
      * @return Error|null
      */
@@ -168,13 +164,13 @@ class ErrorHandler
     /**
      * Error handler
      *
-     * @param integer $errType error lavel / type (one of PHP's E_* constants)
-     * @param string  $errMsg  the error message
-     * @param string  $file    filepath the error was raised in
-     * @param integer $line    the line the error was raised in
-     * @param array   $vars    active symbol table at point error occured
+     * @param int    $errType error lavel / type (one of PHP's E_* constants)
+     * @param string $errMsg  the error message
+     * @param string $file    filepath the error was raised in
+     * @param int    $line    the line the error was raised in
+     * @param array  $vars    active symbol table at point error occured
      *
-     * @return boolean
+     * @return bool
      * @link   http://php.net/manual/en/function.set-error-handler.php
      * @link   http://php.net/manual/en/language.operators.errorcontrol.php
      */
@@ -275,7 +271,6 @@ class ErrorHandler
                 }
             }
         }
-        return;
     }
 
     /**
@@ -292,7 +287,6 @@ class ErrorHandler
         $this->prevErrorHandler = \set_error_handler(array($this, 'handleError'));
         $this->prevExceptionHandler = \set_exception_handler(array($this, 'handleException'));
         $this->registered = true;   // used by this->onShutdown()
-        return;
     }
 
     /**
@@ -356,10 +350,10 @@ class ErrorHandler
      *     Rather than reporting that an error occurred within the wrapper, you can use
      *     setErrorCaller() to report the error originating from the file/line that called the function
      *
-     * @param array   $caller (default) null : determine automatically
+     * @param array $caller (default) null : determine automatically
      *                        empty value (false, "", 0, array(): clear current value
      *                        array() : manually set value
-     * @param integer $offset (optional) if determining automatically : adjust how many frames to go back
+     * @param int   $offset (optional) if determining automatically : adjust how many frames to go back
      *
      * @return void
      */
@@ -384,7 +378,6 @@ class ErrorHandler
             $caller = array();
         }
         $this->data['errorCaller'] = $caller;
-        return;
     }
 
     /**
@@ -404,7 +397,7 @@ class ErrorHandler
         */
         $errHandlerCur = \set_error_handler(array($this, 'handleError'));
         \restore_error_handler();
-        if ($errHandlerCur == array($this, 'handleError')) {
+        if ($errHandlerCur === array($this, 'handleError')) {
             // we are the current error handler
             \restore_error_handler();
         }
@@ -413,7 +406,7 @@ class ErrorHandler
         */
         $exHandlerCur = \set_exception_handler(array($this, 'handleException'));
         \restore_exception_handler();
-        if ($exHandlerCur == array($this, 'handleException')) {
+        if ($exHandlerCur === array($this, 'handleException')) {
             // we are the current exception handler
             \restore_exception_handler();
         }
@@ -421,7 +414,6 @@ class ErrorHandler
         $this->prevErrorHandler = null;
         $this->prevExceptionHandler = null;
         $this->registered = false;  // used by $this->onShutdown()
-        return;
     }
 
     /**
@@ -429,7 +421,7 @@ class ErrorHandler
      *
      * @param Error $error Error instance
      *
-     * @return boolean
+     * @return bool
      * @throws Exception
      */
     protected function continueToPrevHandler(Error $error)
@@ -468,12 +460,12 @@ class ErrorHandler
     /**
      * Create Error instance
      *
-     * @param self    $handler ErrorHandler instance
-     * @param integer $errType the level of the error
-     * @param string  $errMsg  the error message
-     * @param string  $file    filepath the error was raised in
-     * @param string  $line    the line the error was raised in
-     * @param array   $vars    active symbol table at point error occured
+     * @param self   $handler ErrorHandler instance
+     * @param int    $errType the level of the error
+     * @param string $errMsg  the error message
+     * @param string $file    filepath the error was raised in
+     * @param string $line    the line the error was raised in
+     * @param array  $vars    active symbol table at point error occured
      *
      * @return Error
      */
@@ -485,9 +477,9 @@ class ErrorHandler
     /**
      * Test if error type is handled
      *
-     * @param integer $errType error type
+     * @param int $errType error type
      *
-     * @return boolean
+     * @return bool
      */
     protected function isErrTypeHandled($errType)
     {
@@ -495,8 +487,7 @@ class ErrorHandler
             ? \error_reporting() // note:  will return 0 if error suppression is active in call stack (via @ operator)
                                 //  our shutdown function unsupresses fatal errors
             : $this->cfg['errorReporting'];
-        $isHandledType = $errType & $errorReporting;
-        return $isHandledType;
+        return $errType & $errorReporting;
     }
 
     /**
