@@ -22,6 +22,7 @@ use bdk\PubSub\SubscriberInterface;
 class ErrorEmailer implements SubscriberInterface
 {
 
+    /** @var array */
     protected $cfg = array();
     protected $throttleData = array();
     protected $errTypes = array();  // populated onError
@@ -50,6 +51,7 @@ class ErrorEmailer implements SubscriberInterface
                 ? $this->serverParams['SERVER_ADMIN']
                 : null,
             'emailTraceMask' => E_ERROR | E_WARNING | E_USER_ERROR | E_USER_NOTICE,
+            'dateTimeFmt' => 'Y-m-d H:i:s (T)',
         );
         $this->setCfg($cfg);
     }
@@ -183,7 +185,7 @@ class ErrorEmailer implements SubscriberInterface
     protected function backtraceStr(Error $error)
     {
         $backtrace = $error->getTrace() ?: Backtrace::get();
-        if (\count($backtrace) < 2) {
+        if (empty($backtrace) || \count($backtrace) < 2) {
             return '';
         }
         if ($backtrace && $error['vars']) {
@@ -234,15 +236,14 @@ class ErrorEmailer implements SubscriberInterface
      */
     protected function emailErr(Error $error)
     {
-        $dateTimeFmt = 'Y-m-d H:i:s (T)';
         $countSince = $error['stats']['countSince'];
         $emailBody = '';
         if (!empty($countSince)) {
-            $dateTimePrev = \date($dateTimeFmt, $error['stats']['tsEmailed']);
+            $dateTimePrev = \date($this->cfg['dateTimeFmt'], $error['stats']['tsEmailed']) ?: '';
             $emailBody .= 'Error has occurred ' . $countSince . ' times since last email (' . $dateTimePrev . ').' . "\n\n";
         }
         $emailBody .= ''
-            . 'datetime: ' . \date($dateTimeFmt) . "\n"
+            . 'datetime: ' . \date($this->cfg['dateTimeFmt']) . "\n"
             . 'errormsg: ' . $error->getMessage() . "\n"
             . 'errortype: ' . $error['type'] . ' (' . $error['typeStr'] . ')' . "\n"
             . 'file: ' . $error['file'] . "\n"
@@ -356,7 +357,7 @@ class ErrorEmailer implements SubscriberInterface
             }
             unset($this->throttleData['errors'][$k]);
             if ($err['countSince'] > 0) {
-                $dateLastEmailed = \date('Y-m-d H:i:s', $err['tsEmailed']);
+                $dateLastEmailed = \date($this->cfg['dateTimeFmt'], $err['tsEmailed']) ?: '??';
                 $emailBody .= ''
                     . 'File: ' . $err['file'] . "\n"
                     . 'Line: ' . $err['line'] . "\n"

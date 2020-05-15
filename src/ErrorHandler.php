@@ -23,7 +23,9 @@ class ErrorHandler
 {
 
     public $eventManager;
+    /** @var array */
     protected $cfg = array();
+    /** @var array */
     protected $data = array(
         'errorCaller'   => array(),
         'errors'        => array(),
@@ -32,7 +34,6 @@ class ErrorHandler
         'uncaughtException' => null,    // error constructor will pull this
     );
     protected $inShutdown = false;
-    protected $shutdownError;   // array from error_get_last()
     protected $registered = false;
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
@@ -77,6 +78,19 @@ class ErrorHandler
     }
 
     /**
+     * What error level are we handling
+     *
+     * @return int
+     */
+    public function errorReporting()
+    {
+        return $this->cfg['errorReporting'] === 'system'
+            ? \error_reporting() // note:  will return 0 if error suppression is active in call stack (via @ operator)
+                                //  our shutdown function unsupresses fatal errors
+            : $this->cfg['errorReporting'];
+    }
+
+    /**
      * Retrieve a data value or property
      *
      * @param string $key  what to get
@@ -84,7 +98,7 @@ class ErrorHandler
      *
      * @return mixed
      */
-    public function get($key = null, $hash = null)
+    public function get($key, $hash = null)
     {
         if ($key === 'error') {
             return isset($this->data['errors'][$hash])
@@ -201,7 +215,7 @@ class ErrorHandler
      *   * catching backtrace via shutdown function only possible if xdebug installed
      *   * xdebug_get_function_stack's magic seems powerless for uncaught exceptions!
      *
-     * @param Exception|\Throwable $exception exception to handle
+     * @param \Exception|\Throwable $exception exception to handle
      *
      * @return void
      */
@@ -241,27 +255,34 @@ class ErrorHandler
         if (!$error) {
             return;
         }
-        if ($error['type'] & (E_ERROR | E_PARSE | E_COMPILE_ERROR | E_CORE_ERROR)) {
-            /*
-                found in wild:
-                @include(some_file_with_parse_error)
-                which will trigger a fatal error (here we are),
-                but error_reporting() will return 0 due to the @ operator
-                unsuppress fatal error here
-            */
-            \error_reporting(E_ALL | E_STRICT);
-            $this->shutdownError = $error;
-            $this->handleError($error['type'], $error['message'], $error['file'], $error['line'], isset($error['vars'])
+        if (($error['type'] & (E_ERROR | E_PARSE | E_COMPILE_ERROR | E_CORE_ERROR)) !== $error['type']) {
+            // not fatal error
+            return;
+        }
+        /*
+            found in wild:
+            @include(some_file_with_parse_error)
+            which will trigger a fatal error shutdown (here we are),
+            but error_reporting() will return 0 due to the @ operator
+            "unsuppress" fatal error here by calling error_reporting()
+        */
+        \error_reporting(E_ALL | E_STRICT);
+        $this->handleError(
+            $error['type'],
+            $error['message'],
+            $error['file'],
+            $error['line'],
+            isset($error['vars'])
                 ? $error['vars']
-                : array());
-            /*
-                Find the fatal error/uncaught-exception and attach to shutdown event
-            */
-            foreach ($this->data['errors'] as $error) {
-                if ($error['category'] === 'fatal') {
-                    $event['error'] = $error;
-                    break;
-                }
+                : array()
+        );
+        /*
+            Find the fatal error/uncaught-exception and attach to shutdown event
+        */
+        foreach ($this->data['errors'] as $error) {
+            if ($error['category'] === 'fatal') {
+                $event['error'] = $error;
+                break;
             }
         }
     }
@@ -313,7 +334,7 @@ class ErrorHandler
             /*
                 Replace - not append - subscriber set via setCfg
             */
-            if (isset($this->cfg['onError'])) {
+            if ($this->cfg['onError'] !== null) {
                 $this->eventManager->unsubscribe('errorHandler.error', $this->cfg['onError']);
             }
             $this->eventManager->subscribe('errorHandler.error', $values['onError']);
@@ -343,10 +364,10 @@ class ErrorHandler
      *     Rather than reporting that an error occurred within the wrapper, you can use
      *     setErrorCaller() to report the error originating from the file/line that called the function
      *
-     * @param array $caller (default) null : determine automatically
-     *                        empty value (false, "", 0, array(): clear current value
-     *                        array() : manually set value
-     * @param int   $offset (optional) if determining automatically : adjust how many frames to go back
+     * @param array|null|false $caller (default) null : determine automatically
+     *                           false or empty array: clear current value
+     *                           array() : manually set value
+     * @param int              $offset (optional) if determining automatically : adjust how many frames to go back
      *
      * @return void
      */
@@ -415,7 +436,7 @@ class ErrorHandler
      * @param Error $error Error instance
      *
      * @return bool
-     * @throws Exception
+     * @throws \Exception
      */
     protected function continueToPrevHandler(Error $error)
     {
@@ -435,19 +456,18 @@ class ErrorHandler
             */
             \restore_exception_handler();
             throw $error['exception'];
-        } else {
-            if (!$this->prevErrorHandler) {
-                return !$error['continueToNormal'];
-            }
-            return \call_user_func(
-                $this->prevErrorHandler,
-                $error['type'],
-                $error['message'],
-                $error['file'],
-                $error['line'],
-                $error['vars']
-            );
         }
+        if (!$this->prevErrorHandler) {
+            return !$error['continueToNormal'];
+        }
+        return \call_user_func(
+            $this->prevErrorHandler,
+            $error['type'],
+            $error['message'],
+            $error['file'],
+            $error['line'],
+            $error['vars']
+        );
     }
 
     /**
@@ -476,11 +496,7 @@ class ErrorHandler
      */
     protected function isErrTypeHandled($errType)
     {
-        $errorReporting = $this->cfg['errorReporting'] === 'system'
-            ? \error_reporting() // note:  will return 0 if error suppression is active in call stack (via @ operator)
-                                //  our shutdown function unsupresses fatal errors
-            : $this->cfg['errorReporting'];
-        return $errType & $errorReporting;
+        return ($errType & $this->errorReporting()) === $errType;
     }
 
     /**

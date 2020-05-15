@@ -52,7 +52,15 @@ class Error extends Event
         E_USER_NOTICE,
         E_USER_WARNING,
     );
-    protected $backtrace = false;  // store fatal non-Exception backtrace
+
+    /**
+     * Store fatal non-Exception backtrace
+     *
+     * Initially null, will become array or false on attempt to get backtrace
+     *
+     * @var array|false|null
+     */
+    protected $backtrace = null;
 
     /**
      * Constructor
@@ -134,9 +142,9 @@ class Error extends Event
      *
      * Backtrace is avail for fatal errors (incl uncaught exceptions)
      *
-     * @param bool $withContext (auto) Whether to include code snippets
+     * @param bool|'auto' $withContext (auto) Whether to include code snippets
      *
-     * @return array
+     * @return array|false|null
      */
     public function getTrace($withContext = 'auto')
     {
@@ -144,7 +152,8 @@ class Error extends Event
             ? Backtrace::get($this->values['exception']) // adds Exception's file/line as frame and "normalizes"
             : $this->backtrace;
         if (!$trace) {
-            return false;
+            // false, null, or empty array()
+            return $trace;
         }
         if ($withContext === 'auto') {
             $withContext = $this->isFatal();
@@ -190,6 +199,13 @@ class Error extends Event
         if ($key === 'backtrace') {
             $trace = $this->getTrace();
             return $trace;
+        } elseif ($key === 'context') {
+            $context = Backtrace::getFileLines(
+                $this->values['file'],
+                \max($this->values['line'] - 6, 0),
+                13
+            );
+            return $context;
         }
         return parent::offsetGet($key);
     }
