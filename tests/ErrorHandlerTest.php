@@ -109,7 +109,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         $callLine = __LINE__ + 1;
         $this->errorHandler->eventManager->publish('php.shutdown', null, array('error' => $error));
         $lastError = $this->errorHandler->get('lastError');
-        $this->assertArraySubset($errorValuesExpect, $lastError);
+        $this->assertArraySubset($errorValuesExpect, $lastError->getValues());
         // test subscriber
         $this->assertInstanceOf('bdk\\PubSub\\Event', $this->onErrorEvent);
         $this->assertSame($this->errorHandler, $this->onErrorEvent->getSubject());
