@@ -124,10 +124,10 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             $lines = \array_merge(array(null), \file($error['file']));
             $lines = \array_slice($lines, $callLine - 9, 19, true);
             $this->assertSame(array(
-                'file' => $error['file'],
-                'line' => $callLine,
                 'args' => array(),
                 'evalLine' => null,
+                'file' => $error['file'],
+                'line' => $callLine,
                 'context' => $lines,
             ), $backtrace[0]);
             $this->assertSame(__CLASS__ . '->' . __FUNCTION__, $backtrace[1]['function']);
