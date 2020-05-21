@@ -9,7 +9,7 @@ It is installable and autoloadable via [Composer](https://getcomposer.org/) as [
 ```json
 {
     "require": {
-        "bdk/errorhandler": "^2.0",
+        "bdk/errorhandler": "~3.0",
     }
 }
 ```
