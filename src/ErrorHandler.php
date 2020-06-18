@@ -84,10 +84,14 @@ class ErrorHandler
      */
     public function errorReporting()
     {
-        return $this->cfg['errorReporting'] === 'system'
+        $errorReporting = $this->cfg['errorReporting'] === 'system'
             ? \error_reporting() // note:  will return 0 if error suppression is active in call stack (via @ operator)
                                 //  our shutdown function unsupresses fatal errors
             : $this->cfg['errorReporting'];
+        if ($errorReporting === -1) {
+            $errorReporting = E_ALL | E_STRICT;
+        }
+        return $errorReporting;
     }
 
     /**
@@ -197,13 +201,13 @@ class ErrorHandler
             return $this->continueToPrevHandler($error);
         }
         $this->storeLastError($error);
+        $this->data['errors'][ $error['hash'] ] = $error;
         if (!$error['isSuppressed']) {
             // only clear error caller via non-suppressed error
             $this->data['errorCaller'] = array();
             // only publish event for non-suppressed error
             $this->eventManager->publish('errorHandler.error', $error);
         }
-        $this->data['errors'][ $error['hash'] ] = $error;
         return $this->continueToPrevHandler($error);
     }
 
