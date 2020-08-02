@@ -5,12 +5,13 @@
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright 2014-2020 Brad Kent
- * @version   v3.0
+ * @version   v3.0.1
  */
 
 namespace bdk\ErrorHandler;
 
 use bdk\Backtrace;
+use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
 use bdk\PubSub\SubscriberInterface;
 
@@ -80,7 +81,7 @@ class ErrorEmailer implements SubscriberInterface
     public function getSubscriptions()
     {
         return array(
-            'errorHandler.error' => array(
+            ErrorHandler::EVENT_ERROR => array(
                 array('onErrorHighPri', PHP_INT_MAX),
                 array('onErrorLowPri', PHP_INT_MAX * -1),
             ),

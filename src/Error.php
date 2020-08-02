@@ -5,7 +5,7 @@
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright 2014-2020 Brad Kent
- * @version   v3.0
+ * @version   v3.0.1
  */
 
 namespace bdk\ErrorHandler;
@@ -181,7 +181,13 @@ class Error extends Event
     public function log()
     {
         $error = $this->values;
-        $str = 'PHP ' . $error['typeStr'] . ':  ' . $error['message'] . ' in ' . $error['file'] . ' on line ' . $error['line'];
+        $str = \sprintf(
+            'PHP %s: %s in %s on line %s',
+            $error['typeStr'],
+            $error['message'],
+            $error['file'],
+            $error['line']
+        );
         return \error_log($str);
     }
 
