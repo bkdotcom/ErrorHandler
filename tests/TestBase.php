@@ -1,12 +1,15 @@
 <?php
 
+namespace bdk\ErrorHandler\tests;
+
 use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
 use bdk\ErrorHandler\ErrorEmailer;
 use bdk\PubSub\Manager;
 use PHPUnit\Framework\Exception;
+use PHPUnit\Framework\TestCase;
 
-class TestBase extends \PHPUnit\Framework\TestCase
+class TestBase extends TestCase
 {
 
     public static $allowError = false;
@@ -32,7 +35,7 @@ class TestBase extends \PHPUnit\Framework\TestCase
             $this->errorHandler->eventManager->subscribe('errorHandler.error', array(self::$errorEmailer, 'onErrorLowPri'), PHP_INT_MAX * -1);
             $this->errorHandler->eventManager->subscribe('errorHandler.error', function (Error $error) {
                 if (self::$allowError) {
-                    $error['continueToNormal'] = false;
+                    // $error['continueToNormal'] = false;
                     $error['continueToPrevHandler'] = false;
                     return;
                 }
@@ -40,7 +43,11 @@ class TestBase extends \PHPUnit\Framework\TestCase
                 throw new Exception($error['message'], 500);
             });
         }
-        self::$errorEmailer->setCfg('emailTo', null);
+        $this->errorHandler->register();
+        $this->errorHandler->setCfg(array(
+            'emailTo' => null,
+            'onEUserError' => 'continue',
+        ));
         $this->errorHandler->setData('errors', array());
         $this->errorHandler->setData('errorCaller', array());
         $this->errorHandler->setData('lastErrors', array());

@@ -40,6 +40,7 @@ class ErrorHandler
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
     protected $prevExceptionHandler = null;
+    private $toStringException = null;
     private static $instance;
 
     /**
@@ -196,6 +197,8 @@ class ErrorHandler
     public function handleError($errType, $errMsg, $file, $line, $vars = array())
     {
         $error = $this->cfg['errorFactory']($this, $errType, $errMsg, $file, $line, $vars);
+        $this->anonymousCheck($error);
+        $this->toStringCheck($error);
         if (!$this->isErrTypeHandled($errType)) {
             // not handled
             //   if cfg['errorReporting'] == 'system', error could simply be suppressed
@@ -435,6 +438,28 @@ class ErrorHandler
     }
 
     /**
+     * Check for anonymous class notation
+     * Replace with more usefull parent class
+     *
+     * @param Error $error Error instance
+     *
+     * @return void
+     */
+    private function anonymousCheck(Error $error)
+    {
+        $message = $error['message'];
+        if (\strpos($message, "class@anonymous\0") === false) {
+            return;
+        }
+        $regex = '/class@anonymous\x00.*?\.php(?:0x?|:)[0-9a-fA-F]++/';
+        $error['message'] = \preg_replace_callback($regex, function ($matches) {
+            return \class_exists($matches[0], false)
+                ? \get_parent_class($matches[0]) . '@anonymous'
+                : $matches[0];
+        }, $message);
+    }
+
+    /**
      * Conditioanlly pass error or exception to previously defined handler
      *
      * @param Error $error Error instance
@@ -444,16 +469,13 @@ class ErrorHandler
      */
     protected function continueToPrevHandler(Error $error)
     {
-        if (\in_array($error['type'], array(E_USER_ERROR, E_RECOVERABLE_ERROR))) {
-            // set error['continueToNormal']
-            $this->handleUserError($error);
-        }
-        if (!$error['continueToPrevHandler'] || $error->isPropagationStopped()) {
-            return !$error['continueToNormal'];
+        $this->handleUserError($error);
+        if ($error['continueToPrevHandler'] === false || $error->isPropagationStopped()) {
+            return $error['continueToNormal'] === false;
         }
         if ($error['exception']) {
             if (!$this->prevExceptionHandler) {
-                return !$error['continueToNormal'];
+                return $error['continueToNormal'] === false;
             }
             /*
                 re-throw exception vs calling handler directly
@@ -462,7 +484,7 @@ class ErrorHandler
             throw $error['exception'];
         }
         if (!$this->prevErrorHandler) {
-            return !$error['continueToNormal'];
+            return $error['continueToNormal'] === false;
         }
         return \call_user_func(
             $this->prevErrorHandler,
@@ -488,6 +510,7 @@ class ErrorHandler
      */
     protected function errorFactory(self $handler, $errType, $errMsg, $file, $line, $vars = array())
     {
+        unset($vars['GLOBALS']);
         return new Error($handler, $errType, $errMsg, $file, $line, $vars);
     }
 
@@ -506,34 +529,19 @@ class ErrorHandler
     /**
      * Handle E_USER_ERROR and E_RECOVERABLE_ERROR
      *
-     * Should script terminate, or continue?
+     * Log user error if cfg['onEUserError'] === 'log' and propagation not stopped
      *
-     * @param Error $error Errorinstance
+     * @param Error $error Error instance
      *
      * @return void
      */
     protected function handleUserError(Error $error)
     {
-        switch ($this->cfg['onEUserError']) {
-            case 'continue':
-                $error['continueToNormal'] = false;
-                break;
-            case 'log':
-                // log the error, but continue script
-                if (!$error->isPropagationStopped() && $error['continueToNormal']) {
-                    $error->log();
-                }
-                $error['continueToNormal'] = false;
-                break;
-            case 'normal':
-                // force continueToNormal
-                // for a userError, php will log error and script will halt
-                $error['continueToNormal'] = true;
-                break;
-            default:
-                /*
-                don't change continueToNormal value
-                */
+        if (\in_array($error['type'], array(E_USER_ERROR, E_RECOVERABLE_ERROR)) === false) {
+            return;
+        }
+        if ($this->cfg['onEUserError'] === 'log' && !$error->isPropagationStopped()) {
+            $error->log();
         }
     }
 
@@ -542,12 +550,12 @@ class ErrorHandler
      *
      * @return callable|null
      */
-    private static function getErrorHandler()
+    private function getErrorHandler()
     {
         /*
             set and restore error handler to determine the current error handler
         */
-        $errHandlerCur = \set_error_handler('var_dump');
+        $errHandlerCur = \set_error_handler(array($this, 'handleError'));
         \restore_error_handler();
         return $errHandlerCur;
     }
@@ -557,12 +565,12 @@ class ErrorHandler
      *
      * @return callable|null
      */
-    private static function getExceptionHandler()
+    private function getExceptionHandler()
     {
         /*
             set and restore exception handler to determine the current error handler
         */
-        $exHandlerCur = \set_exception_handler('var_dump');
+        $exHandlerCur = \set_exception_handler(array($this, 'handleException'));
         \restore_exception_handler();
         return $exHandlerCur;
     }
@@ -583,5 +591,72 @@ class ErrorHandler
         });
         $this->data['lastErrors'] = \array_slice($this->data['lastErrors'], 0, 1);
         \array_unshift($this->data['lastErrors'], $error);
+    }
+
+    /**
+     * Handle  Fatal Error 'Method __toString() must not throw an exception'
+     *
+     * PHP < 7.4 does not allow an exception to be thrown from __toString
+     * A work around
+     *    try {
+     *        // code
+     *    } catch (\Exception $e) {
+     *        return trigger_error ($e, E_USER_ERROR);
+     *    }
+     *
+     * @param Error $error [description]
+     *
+     * @return void
+     * @throws re-throws caught exception
+     */
+    private function toStringCheck(Error $error)
+    {
+        if (PHP_VERSION_ID >= 70400) {
+            return;
+        }
+        if ($this->toStringException) {
+            $e = $this->toStringException;
+            $this->toStringException = null;
+            throw $e;
+        }
+        if ($error['type'] !== E_USER_ERROR) {
+            return;
+        }
+        $errMsg = $error['message'];
+        /*
+            Find exception in context
+            if found, check if error via __toString -> trigger_error
+        */
+        foreach ($error['vars'] as $val) {
+            if ($val instanceof \Exception && ($val->getMessage() === $errMsg || (string) $val === $errMsg)) {
+                return $this->toStringCheckTrigger($error, $val);
+            }
+        }
+    }
+
+    /**
+     * Look through backtrace to see if error via __toString -> trigger_error
+     *
+     * @param Error               $error     Error instance
+     * @param Throwable|Exception $exception Exception
+     *
+     * @return void
+     */
+    private function toStringCheckTrigger(Error $error, $exception)
+    {
+        $backtrace = $error->getTrace();
+        $count = \count($backtrace);
+        for ($i = 1; $i < $count; $i++) {
+            if (
+                isset($backtrace[$i - 1]['function'])
+                && \in_array($backtrace[$i - 1]['function'], array('trigger_error', 'user_error'))
+                && \strpos($backtrace[$i]['function'], '->__toString') !== false
+            ) {
+                $error->stopPropagation();
+                $error['continueToNormal'] = false;
+                $this->toStringException = $exception;
+                return;
+            }
+        }
     }
 }
