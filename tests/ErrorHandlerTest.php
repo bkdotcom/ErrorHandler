@@ -261,13 +261,8 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
                 'file' => __FILE__,
                 'line' => __LINE__
             );
-            $backtraceLine = __LINE__ + 6;
-            $this->errorHandler->handleError(
-                $expect['type'],
-                $expect['message'],
-                $expect['file'],
-                $expect['line']
-            );
+            $backtraceLine = __LINE__ + 1;
+            $this->errorHandler->handleError($expect['type'], $expect['message'], $expect['file'], $expect['line']);
             $this->fail('ErrorException expected');
         } catch (\ErrorException $e) {
             $this->assertSame($expect, array(
