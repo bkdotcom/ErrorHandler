@@ -74,6 +74,7 @@ class Error extends Event
      */
     public function __construct(ErrorHandler $errHandler, $errType, $errMsg, $file, $line, $vars = array())
     {
+        unset($vars['GLOBALS']);
         $this->subject = $errHandler;
         $this->values = array(
             'type'      => $errType,                    // int
@@ -83,13 +84,14 @@ class Error extends Event
             'file'      => $file,
             'line'      => $line,
             'vars'      => $vars,
-            'continueToNormal' => null, // aka, let PHP do its thing (log error)
+            'continueToNormal' => null, // aka, let PHP do its thing (log error / exit if E_USER_ERROR)
             'continueToPrevHandler' => $errHandler->getCfg('continueToPrevHandler'),
             'exception' => $errHandler->get('uncaughtException'),  // non-null if error is uncaught-exception
             'hash'          => null,
             'isFirstOccur'  => true,
             'isHtml'        => false,
             'isSuppressed'  => false,
+            'throw'         => ($errType & $errHandler->getCfg('errorThrow')) === $errType,
         );
         $hash = self::errorHash();
         $prevOccurance = $errHandler->get('error', $hash);
@@ -97,7 +99,7 @@ class Error extends Event
             'hash' => $hash,
             'isHtml' => $this->isHtml(),
             'isFirstOccur' => !$prevOccurance,
-            'isSuppressed' => $this->isSuppressed($prevOccurance),
+            'isSuppressed' => $this->isSuppressed($errType, $prevOccurance),
         ));
         $this->values = \array_merge($this->values, array(
             'continueToNormal' => $this->setContinueToNormal($errType, $this->values['isSuppressed'] === false && !$prevOccurance),
@@ -292,16 +294,22 @@ class Error extends Event
     /**
      * Get initial `isSuppressed` value
      *
+     * @param int       $errType       The level of the error
      * @param self|null $prevOccurance previous ccurance of current error
      *
      * @return bool
      */
-    private function isSuppressed(self $prevOccurance = null)
+    private function isSuppressed($errType, self $prevOccurance = null)
     {
-        // if any instance of this error was not supprssed, reflect that
-        return $prevOccurance && !$prevOccurance['isSuppressed']
-            ? false
-            : \error_reporting() === 0;
+        if ($prevOccurance && !$prevOccurance['isSuppressed']) {
+            // if any instance of this error was not supprssed, reflect that
+            return false;
+        }
+        if (($this->subject->getCfg('suppressNever') & $errType) === $errType) {
+            // never suppress tyis type
+            return false;
+        }
+        return \error_reporting() === 0;
     }
 
     /**

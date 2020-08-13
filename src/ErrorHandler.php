@@ -40,7 +40,14 @@ class ErrorHandler
     protected $prevDisplayErrors = null;
     protected $prevErrorHandler = null;
     protected $prevExceptionHandler = null;
+
+    /**
+     * Temp store error exception caught/triggered inside __toString
+     *
+     * @var Exception
+     */
     private $toStringException = null;
+
     private static $instance;
 
     /**
@@ -58,9 +65,9 @@ class ErrorHandler
             'errorFactory' => array($this, 'errorFactory'),
             'errorReporting' => E_ALL | E_STRICT,   // what errors are handled by handler? bitmask or "system" to use runtime value
                                                     //   note that if using "system", suppressed errors (via @ operator) will not be handled (we'll still handle fatal category)
-            // shortcut for subscribing to errorHandler.error Event
-            //   will receive error Event object
-            'onError' => null,
+            'errorThrow' => 0,          // bitmask: error types that whould be to converted to ErrorException and thrown
+            'onError' => null,          // shortcut for subscribing to errorHandler.error Event
+                                        //   will receive error Event object
             'onEUserError' => 'normal', // only applicable if we're not continuing to a prev error handler
                                     // (continueToPrevHandler = false, there's no previous handler, or propagation stopped)
                                     //   'continue' : forces error[continueToNormal] = false (script will continue)
@@ -68,6 +75,7 @@ class ErrorHandler
                                     //         continue script execution
                                     //   'normal' : forces error[continueToNormal] = true;
                                     //   null : use error's error[continueToNormal] value
+            'suppressNever' => E_ERROR | E_PARSE | E_RECOVERABLE_ERROR | E_USER_ERROR,
         );
         // Initialize self::$instance if not set
         //    so that self::getInstance() will always return original instance
@@ -212,6 +220,7 @@ class ErrorHandler
             $this->data['errorCaller'] = array();
             // only publish event for non-suppressed error
             $this->eventManager->publish(self::EVENT_ERROR, $error);
+            $this->throwError($error);
         }
         return $this->continueToPrevHandler($error);
     }
@@ -264,18 +273,10 @@ class ErrorHandler
         if (!$error) {
             return;
         }
-        if (($error['type'] & (E_ERROR | E_PARSE | E_COMPILE_ERROR | E_CORE_ERROR)) !== $error['type']) {
-            // not fatal error
+        $isFatal = ($error['type'] & (E_ERROR | E_PARSE | E_COMPILE_ERROR | E_CORE_ERROR)) === $error['type'];
+        if ($isFatal === false) {
             return;
         }
-        /*
-            found in wild:
-            @include(some_file_with_parse_error)
-            which will trigger a fatal error shutdown (here we are),
-            but error_reporting() will return 0 due to the @ operator
-            "unsuppress" fatal error here by calling error_reporting()
-        */
-        \error_reporting(E_ALL | E_STRICT);
         $this->handleError(
             $error['type'],
             $error['message'],
@@ -510,7 +511,6 @@ class ErrorHandler
      */
     protected function errorFactory(self $handler, $errType, $errMsg, $file, $line, $vars = array())
     {
-        unset($vars['GLOBALS']);
         return new Error($handler, $errType, $errMsg, $file, $line, $vars);
     }
 
@@ -591,6 +591,25 @@ class ErrorHandler
         });
         $this->data['lastErrors'] = \array_slice($this->data['lastErrors'], 0, 1);
         \array_unshift($this->data['lastErrors'], $error);
+    }
+
+    /**
+     * Throw ErrorException if $error['throw'] === true
+     *
+     * @param Error $error error exception
+     *
+     * @return void
+     *
+     * @throws ErrorException
+     */
+    private function throwError(Error $error)
+    {
+        if ($error['isSuppressed']) {
+            return;
+        }
+        if ($error['throw']) {
+            throw $error->asException();
+        }
     }
 
     /**

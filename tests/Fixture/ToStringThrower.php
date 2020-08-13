@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandler\tests\Fixture;
+namespace bdk\ErrorHandlerTests\Fixture;
 
 class ToStringThrower
 {

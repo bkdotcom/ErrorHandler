@@ -22,13 +22,13 @@
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"bdk\\ErrorHandler\\tests\\": "tests/"
+			"bdk\\ErrorHandlerTests\\": "tests/"
 		}
 	},
 	"require": {
 		"php": ">=5.4.0",
 		"bdk/backtrace": "^1.0",
-		"bdk/pubsub": "^2.3.2"
+		"bdk/pubsub": "dev-master"
 	},
 	"require-dev": {
 		"bdk/css-xpath": "^1.0"

@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandler\tests;
+namespace bdk\ErrorHandlerTests;
 
 use bdk\ErrorHandler\Error;
 
@@ -203,9 +203,11 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
 
     public function testHandleErrorWithAnonymousClass()
     {
+        if (PHP_VERSION_ID < 70000) {
+            $this->markTestSkipped('anonymous classes are a php 7.0 thing');
+        }
         self::$allowError = true;
-        $anonymous = new class () extends \stdClass {
-        };
+        $anonymous = require __DIR__ . '/Fixture/Anonymous.php';
         $this->errorHandler->handleError(
             E_WARNING,
             'foo ' . \get_class($anonymous) . ' bar',
@@ -246,6 +248,39 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'file' => __FILE__,
             'line' => __LINE__ - 4,
         ), $errorCaller);
+    }
+
+    public function testThrowErrorException()
+    {
+        try {
+            self::$allowError = true;
+            $this->errorHandler->setCfg('errorThrow', -1);
+            $expect = array(
+                'type' => E_USER_ERROR,
+                'message' => 'This is a test',
+                'file' => __FILE__,
+                'line' => __LINE__
+            );
+            $backtraceLine = __LINE__ + 6;
+            $this->errorHandler->handleError(
+                $expect['type'],
+                $expect['message'],
+                $expect['file'],
+                $expect['line']
+            );
+            $this->fail('ErrorException expected');
+        } catch (\ErrorException $e) {
+            $this->assertSame($expect, array(
+                'type' => $e->getSeverity(),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ));
+            $trace = $e->getTrace();
+            $this->assertSame($expect['file'], $trace[0]['file']);
+            $this->assertSame($backtraceLine, $trace[0]['line']);
+            $this->assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[1]['function']);
+        }
     }
 
     public function testToString()

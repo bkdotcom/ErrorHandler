@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandler\tests;
+namespace bdk\ErrorHandlerTests;
 
 /**
  * Test ErrorEmailer

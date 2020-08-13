@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandler\tests;
+namespace bdk\ErrorHandlerTests;
 
 use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
@@ -47,6 +47,7 @@ class TestBase extends TestCase
         $this->errorHandler->setCfg(array(
             'emailTo' => null,
             'onEUserError' => 'continue',
+            'errorThrow' => 0,
         ));
         $this->errorHandler->setData('errors', array());
         $this->errorHandler->setData('errorCaller', array());
