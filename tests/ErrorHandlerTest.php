@@ -13,7 +13,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
     private $onErrorEvent;
     private $onErrorUpdate = array();
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         // $eventManager = new \bdk\PubSub\Manager();
@@ -26,7 +26,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
      *
      * @return void
      */
-    public function tearDown()
+    public function tearDown(): void
     {
         $this->onErrorEvent = null;
         $this->onErrorUpdate = array();
@@ -64,7 +64,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
         $this->assertSame($exception->getMessage(), $error['message']);
         $this->assertSame($exception->getFile(), $error['file']);
         $this->assertSame($exception->getLine(), $error['line']);
-        $this->assertSame($exception->getTrace(), $error->getTrace());
+        $this->assertSame($exception->getTrace(), $error->getTrace() ?: array());
     }
 
     /**

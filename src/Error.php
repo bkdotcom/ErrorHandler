@@ -10,23 +10,32 @@
 
 namespace bdk\ErrorHandler;
 
-use bdk\Backtrace;
 use bdk\ErrorHandler;
 use bdk\PubSub\Event;
 
 /**
  * Error object
+ *
+ * @property array $context lines surrounding error
+ * @property array $trace   backtrace
  */
 class Error extends Event
 {
 
+    const CAT_DEPRECATED = 'deprecated';
+    const CAT_ERROR = 'error';
+    const CAT_NOTICE = 'notice';
+    const CAT_STRICT = 'strict';
+    const CAT_WARNING = 'warning';
+    const CAT_FATAL = 'fatal';
+
     protected static $errCategories = array(
-        'deprecated'    => array( E_DEPRECATED, E_USER_DEPRECATED ),
-        'error'         => array( E_USER_ERROR, E_RECOVERABLE_ERROR ),
-        'notice'        => array( E_NOTICE, E_USER_NOTICE ),
-        'strict'        => array( E_STRICT ),
-        'warning'       => array( E_WARNING, E_CORE_WARNING, E_COMPILE_WARNING, E_USER_WARNING ),
-        'fatal'         => array( E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR ),
+        self::CAT_DEPRECATED => array( E_DEPRECATED, E_USER_DEPRECATED ),
+        self::CAT_ERROR      => array( E_USER_ERROR, E_RECOVERABLE_ERROR ),
+        self::CAT_NOTICE     => array( E_NOTICE, E_USER_NOTICE ),
+        self::CAT_STRICT     => array( E_STRICT ),
+        self::CAT_WARNING    => array( E_WARNING, E_CORE_WARNING, E_COMPILE_WARNING, E_USER_WARNING ),
+        self::CAT_FATAL      => array( E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR ),
     );
     protected static $errTypes = array(
         E_ERROR             => 'Fatal Error',       // handled via shutdown function
@@ -110,11 +119,11 @@ class Error extends Event
         ));
         if (\in_array($errType, array(E_ERROR, E_USER_ERROR)) && $this->values['exception'] === null) {
             // will return empty unless xdebug extension installed/enabled
-            Backtrace::addInternalClass(array(
+            $this->subject->backtrace->addInternalClass(array(
                 'bdk\\ErrorHandler',
                 'bdk\\PubSub',
             ));
-            $this->backtrace = Backtrace::get();
+            $this->backtrace = $this->subject->backtrace->get();
         }
         $errorCaller = $errHandler->get('errorCaller');
         if ($errorCaller) {
@@ -128,7 +137,7 @@ class Error extends Event
      *
      * If error is an uncaught exception, the original Exception will be returned
      *
-     * @return Exception|ErrorException
+     * @return \Exception|\ErrorException
      */
     public function asException()
     {
@@ -144,7 +153,7 @@ class Error extends Event
         );
         $traceReflector = new \ReflectionProperty('Exception', 'trace');
         $traceReflector->setAccessible(true);
-        $traceReflector->setValue($exception, $this->getTrace());
+        $traceReflector->setValue($exception, $this->getTrace() ?: array());
         return $exception;
     }
 
@@ -169,6 +178,7 @@ class Error extends Event
      * Get backtrace
      *
      * Backtrace is avail for fatal errors (incl uncaught exceptions)
+     *   (does not include parse errors)
      *
      * @param bool|'auto' $withContext (auto) Whether to include code snippets
      *
@@ -176,8 +186,11 @@ class Error extends Event
      */
     public function getTrace($withContext = 'auto')
     {
+        if ($this->values['exception'] instanceof \ParseError) {
+            return null;
+        }
         $trace = $this->values['exception']
-            ? Backtrace::get($this->values['exception']) // adds Exception's file/line as frame and "normalizes"
+            ? $this->subject->backtrace->get(null, 0, $this->values['exception']) // adds Exception's file/line as frame and "normalizes"
             : $this->backtrace;
         if (!$trace) {
             // false, null, or empty array()
@@ -187,7 +200,7 @@ class Error extends Event
             $withContext = $this->isFatal();
         }
         return $withContext
-            ? Backtrace::addContext($trace)
+            ? $this->subject->backtrace->addContext($trace)
             : $trace;
     }
 
@@ -198,7 +211,7 @@ class Error extends Event
      */
     public function isFatal()
     {
-        return \in_array($this->values['type'], self::$errCategories['fatal']);
+        return $this->values['category'] === self::CAT_FATAL;
     }
 
     /**
@@ -234,7 +247,7 @@ class Error extends Event
             $trace = $this->getTrace();
             return $trace;
         } elseif ($key === 'context') {
-            $context = Backtrace::getFileLines(
+            $context = $this->subject->backtrace->getFileLines(
                 $this->values['file'],
                 \max($this->values['line'] - 6, 0),
                 13

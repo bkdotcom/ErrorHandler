@@ -5,12 +5,17 @@ namespace bdk\ErrorHandlerTests;
 use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
 use bdk\ErrorHandler\ErrorEmailer;
+use bdk\ErrorHandlerTests\Polyfill\AssertionTrait;
 use bdk\PubSub\Manager;
 use PHPUnit\Framework\Exception;
 use PHPUnit\Framework\TestCase;
 
+/**
+ *
+ */
 class TestBase extends TestCase
 {
+    use AssertionTrait;
 
     public static $allowError = false;
     public $errorHandler = null;
@@ -21,7 +26,7 @@ class TestBase extends TestCase
      *
      * @return void
      */
-    public function setUp()
+    public function setUp(): void
     {
         self::$allowError = false;
         if (!$this->errorHandler) {

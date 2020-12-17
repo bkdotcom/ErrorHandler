@@ -14,4 +14,7 @@ foreach ($classMap as $old => $new) {
     }
 }
 
-require __DIR__.'/../vendor/autoload.php';
+require __DIR__ . '/../vendor/autoload.php';
+
+$modifyTests = new \bdk\ErrorHandlerTests\ModifyTests();
+$modifyTests->modify(__DIR__);

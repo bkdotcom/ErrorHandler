@@ -11,7 +11,7 @@ class ErrorEmailerTest extends TestBase
     private $emailCalledCount = 0;
     private $expectedSubject = '';
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         self::$errorEmailer->throttleDataClear();
@@ -26,7 +26,7 @@ class ErrorEmailerTest extends TestBase
      *
      * @return void
      */
-    public function tearDown()
+    public function tearDown(): void
     {
         parent::tearDown();
         self::$errorEmailer->setCfg(array(
