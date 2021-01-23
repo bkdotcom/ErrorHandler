@@ -231,9 +231,6 @@ class ErrorHandler
      */
     public function handleError($errType, $errMsg, $file, $line, $vars = array())
     {
-        if (!$this->backtrace) {
-            $this->backtrace = new Backtrace();
-        }
         $error = $this->cfg['errorFactory']($this, $errType, $errMsg, $file, $line, $vars);
         $this->anonymousCheck($error);
         $this->toStringCheck($error);
