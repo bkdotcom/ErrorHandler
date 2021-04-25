@@ -4,6 +4,10 @@
 	"keywords": ["errorhandler", "error", "exception"],
 	"homepage": "http://github.com/bkdotcom/ErrorHandler",
 	"license": "MIT",
+	"support": {
+		"issues": "https://github.com/bkdotcom/ErrorHandler/issues",
+		"source": "https://github.com/bkdotcom/ErrorHandler"
+	},
 	"authors": [
 		{
 			"name": "Brad Kent",
@@ -27,7 +31,7 @@
 	},
 	"require": {
 		"php": ">=5.4.0",
-		"bdk/backtrace": "^2.0",
+		"bdk/backtrace": "^2.0.1",
 		"bdk/pubsub": "^2.3.2"
 	}
 }

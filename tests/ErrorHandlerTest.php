@@ -120,7 +120,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'line'      => $error['line'],
             'vars'      => array(),
             // 'backtrace' => array(), // only if xdebug is enabled
-            'continueToNormal' => true,
+            'continueToNormal' => false,
             'exception' => null,  // non-null if error is uncaught-exception
             // 'hash'      => null,
             'isFirstOccur'  => true,
@@ -178,12 +178,13 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             'line'      => $error['line'],
             'vars'      => $error['vars'],
             // 'backtrace' => array(), // only for fatal type errors, and only if xdebug is enabled
-            'continueToNormal' => true,
+            'continueToNormal' => false,
             'exception' => null,  // non-null if error is uncaught-exception
             // 'hash'      => null,
             'isFirstOccur'  => true,
             'isSuppressed'  => false,
         );
+        // returns true when CLI
         $return = $this->errorHandler->handleError(
             $error['type'],
             $error['message'],
@@ -191,7 +192,7 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
             $error['line'],
             $error['vars']
         );
-        $this->assertFalse($return);
+        $this->assertTrue($return);
         // test that last error works
         $lastError = $this->errorHandler->get('lastError');
         $this->assertArraySubset($errorValuesExpect, $lastError->getValues());
@@ -368,8 +369,9 @@ class ErrorHandlerTest extends TestBase // extends DebugTestFramework
 
         $errorHandler->setCfg('onEUserError', 'normal');
 
+        // returns true for CLI
         $return = \call_user_func_array($callable, \array_replace($errorParams, array(3 => __LINE__)));
-        $this->assertFalse($return);
+        $this->assertTrue($return);
 
         // $this->onErrorUpdate = array('continueToNormal' => true);
         // $return = \call_user_func_array($callable, \array_replace($errorParams, array(3 => __LINE__)));

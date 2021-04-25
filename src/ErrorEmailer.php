@@ -4,7 +4,7 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2020 Brad Kent
+ * @copyright 2014-2021 Brad Kent
  * @version   v3.0.1
  */
 
@@ -270,7 +270,7 @@ class ErrorEmailer implements SubscriberInterface
             . 'file: ' . $error['file'] . "\n"
             . 'line: ' . $error['line'] . "\n"
             . '';
-        if ($this->isCli() === false) {
+        if ($error->getSubject()->isCli === false) {
             $emailBody .= ''
                 . 'remote_addr: ' . $this->serverParams['REMOTE_ADDR'] . "\n"
                 . 'http_host: ' . $this->serverParams['HTTP_HOST'] . "\n"
@@ -305,7 +305,7 @@ class ErrorEmailer implements SubscriberInterface
     private function getSubject(Error $error)
     {
         $countSince = $error['stats']['countSince'];
-        $subject = $this->isCli()
+        $subject = $error->getSubject()->isCli
             ? 'Error: ' . \implode(' ', $this->serverParams['argv'])
             : 'Website Error: ' . $this->serverParams['SERVER_NAME'];
         $subject .= ': ' . $error->getMessage() . ($countSince ? ' (' . $countSince . 'x)' : '');
@@ -331,19 +331,6 @@ class ErrorEmailer implements SubscriberInterface
             $return = \file_put_contents($file, $str);
         }
         return $return;
-    }
-
-    /**
-     * Is script running from command line (or cron)?
-     *
-     * @return bool
-     */
-    protected function isCli()
-    {
-        /*
-            note: $_SERVER['argv'] could be populated with query string if register_argc_argv = On
-        */
-        return \defined('STDIN') || isset($this->serverParams['argv']) && \count($this->serverParams['argv']) > 1 || !\array_key_exists('REQUEST_METHOD', $this->serverParams);
     }
 
     /**
