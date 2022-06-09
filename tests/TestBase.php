@@ -4,7 +4,8 @@ namespace bdk\ErrorHandlerTests;
 
 use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
-use bdk\ErrorHandlerTests\Polyfill\AssertionTrait;
+use bdk\ErrorHandlerTests\PolyFill\AssertionTrait;
+use bdk\ErrorHandlerTests\PolyFill\ExpectExceptionTrait;
 use bdk\PubSub\Manager as EventManager;
 use PHPUnit\Framework\TestCase;
 
@@ -14,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 class TestBase extends TestCase
 {
     use AssertionTrait;
+    use ExpectExceptionTrait;
 
     public static $allowError = false;
     public $errorHandler = null;

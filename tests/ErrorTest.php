@@ -3,7 +3,6 @@
 namespace bdk\ErrorHandlerTests;
 
 use bdk\ErrorHandler\Error;
-use bdk\ErrorHandlerTests\PolyFill\ExpectExceptionTrait;
 
 /**
  * PHPUnit tests
@@ -14,8 +13,6 @@ use bdk\ErrorHandlerTests\PolyFill\ExpectExceptionTrait;
  */
 class ErrorTest extends TestBase // extends DebugTestFramework
 {
-    use ExpectExceptionTrait;
-
     public function testConstruct()
     {
         $this->errorHandler->setErrorCaller(array(
