@@ -11,7 +11,6 @@ namespace bdk\ErrorHandlerTests;
  */
 class ModifyTests
 {
-
     private $modifiedFiles = array();
     protected $dir;
 
