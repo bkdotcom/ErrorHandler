@@ -337,19 +337,19 @@ class EmailerTest extends TestBase
 
     public function testDataWrite()
     {
-        $fileNew = __DIR__ . '/statData/stats.json';
+        $statsFileNew = __DIR__ . '/statData/stats.json';
         $this->errorHandler->setCfg(array(
             'stats' => array(
-                'errorStatsFile' => $fileNew,
+                'errorStatsFile' => $statsFileNew,
             ),
         ));
         $this->raiseError(array(
             'type' => E_WARNING,
             'message' => 'statData dir should be created',
         ));
-        $contents = \file_get_contents($fileNew);
-        \unlink($fileNew);
-        \rmdir(\dirname($fileNew));
+        $contents = \file_get_contents($statsFileNew);
+        \unlink($statsFileNew);
+        \rmdir(\dirname($statsFileNew));
         $this->assertNotEmpty($contents);
     }
 
@@ -375,6 +375,8 @@ class EmailerTest extends TestBase
 
         \ini_set('error_log', $errorLogWas);
         \unlink($logFile);
+        \chmod(\dirname($statsFileNew), '0777');
+        // \rmdir(\dirname($statsFileNew));
 
         $this->assertStringContainsString(
             'bdk\ErrorHandler\Plugin\StatsStoreFile::dataWrite: error writing data to ' . $statsFileNew,
