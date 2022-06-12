@@ -143,7 +143,12 @@ class StatsStoreFile extends AbstractComponent implements StatsStoreInterface
             }
         }
         if ($return === false) {
-            \error_log(__METHOD__ . ': error writing data');
+            \error_log(\sprintf(
+                __METHOD__ . ': error writing data %s',
+                $this->cfg['errorStatsFile']
+                    ? 'to ' . $this->cfg['errorStatsFile']
+                    : '(no errorStatsFile specified)'
+            ));
         }
         return $return;
     }

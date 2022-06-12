@@ -92,7 +92,8 @@ class ErrorHandlerTest extends TestBase
     public function testContinueToPrevHandler()
     {
         $this->errorHandler->unregister();
-        \set_error_handler(null);
+        // \set_error_handler(null);
+        \restore_error_handler();
         $this->errorHandler->register();
 
         $error = $this->raiseError(array(
@@ -335,7 +336,8 @@ class ErrorHandlerTest extends TestBase
         \ini_set('error_log', $file);
 
         $this->errorHandler->unregister();
-        \set_exception_handler(null);
+        // \set_exception_handler(null);
+        \restore_exception_handler();
         $this->errorHandler->register();
         $exception = new \Exception('I am exceptional');
         $line = __LINE__ - 1;

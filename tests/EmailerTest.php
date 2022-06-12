@@ -359,12 +359,12 @@ class EmailerTest extends TestBase
         $logFile = __DIR__ . '/error_log.txt';
         \ini_set('error_log', $logFile);
 
-        $fileNew = __DIR__ . '/statData/stats.json';
-        \unlink($fileNew);
-        \chmod(\dirname($fileNew), '0555');
+        $statsFileNew = __DIR__ . '/statData/stats.json';
+        \unlink($statsFileNew);
+        \chmod(\dirname($statsFileNew), '0555');
         $this->errorHandler->setCfg(array(
             'stats' => array(
-                'errorStatsFile' => $fileNew,
+                'errorStatsFile' => $statsFileNew,
             ),
         ));
         $this->raiseError(array(
@@ -376,7 +376,10 @@ class EmailerTest extends TestBase
         \ini_set('error_log', $errorLogWas);
         \unlink($logFile);
 
-        $this->assertStringContainsString('bdk\ErrorHandler\Plugin\StatsStoreFile::dataWrite: error writing data', $logFileContents);
+        $this->assertStringContainsString(
+            'bdk\ErrorHandler\Plugin\StatsStoreFile::dataWrite: error writing data to ' . $statsFileNew,
+            $logFileContents
+        );
     }
 
     public function testPostSetCfg()

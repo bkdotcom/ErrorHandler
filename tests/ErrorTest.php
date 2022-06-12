@@ -108,6 +108,9 @@ class ErrorTest extends TestBase // extends DebugTestFramework
 
     public function testGetTraceParseError()
     {
+        if (\class_exists('ParseError') === false) {
+            $this->markTestSkipped('ParseError class does not available');
+        }
         $exception = new \ParseError('Parse Error!');
         $error = new Error($this->errorHandler, array(
             'type' => E_PARSE,
