@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 trait AssertionTrait
 {
-    public static function assertArraySubset($expected, $actual, $strict = false, $message = ''): void
+    public static function assertArraySubset($expected, $actual, bool $strict = false, string $message = ''): void
     {
         if (\method_exists('\\PHPUnit\\Framework\\TestCase', __FUNCTION__)) {
             TestCase::assertArraySubset($expected, $actual, $strict, $message);
@@ -38,7 +38,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsArray($actual, $message = ''): void
+    public static function assertIsArray($actual, string $message = ''): void
     {
         if (!\is_array($actual)) {
             throw new AssertionFailedError($message ?: 'Not an array');
@@ -46,7 +46,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsBool($actual, $message = ''): void
+    public static function assertIsBool($actual, string $message = ''): void
     {
         if (!\is_bool($actual)) {
             throw new AssertionFailedError($message ?: 'Not boolean');
@@ -54,7 +54,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsCallable($actual, $message = ''): void
+    public static function assertIsCallable($actual, string $message = ''): void
     {
         if (!\is_callable($actual)) {
             throw new AssertionFailedError($message ?: 'Not callable');
@@ -62,7 +62,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsFloat($actual, $message = ''): void
+    public static function assertIsFloat($actual, string $message = ''): void
     {
         if (!\is_float($actual)) {
             throw new AssertionFailedError($message ?: 'Not float');
@@ -70,7 +70,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsInt($actual, $message = ''): void
+    public static function assertIsInt($actual, string $message = ''): void
     {
         if (!\is_integer($actual)) {
             throw new AssertionFailedError($message ?: 'Not int');
@@ -78,7 +78,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsIterable($actual, $message = ''): void
+    public static function assertIsIterable($actual, string $message = ''): void
     {
         if (!\is_array($actual) && !($actual instanceof \Traversable)) {
             throw new AssertionFailedError($message ?: 'Not iterable');
@@ -86,7 +86,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsNumeric($actual, $message = ''): void
+    public static function assertIsNumeric($actual, string $message = ''): void
     {
         if (!\is_numeric($actual)) {
             throw new AssertionFailedError($message ?: 'Not numeric');
@@ -94,7 +94,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsObject($actual, $message = ''): void
+    public static function assertIsObject($actual, string $message = ''): void
     {
         if (!\is_object($actual)) {
             throw new AssertionFailedError($message ?: 'Not object');
@@ -102,7 +102,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsResource($actual, $message = ''): void
+    public static function assertIsResource($actual, string $message = ''): void
     {
         if (!\is_resource($actual)) {
             throw new AssertionFailedError($message ?: 'Not resource');
@@ -110,7 +110,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsScalar($actual, $message = ''): void
+    public static function assertIsScalar($actual, string $message = ''): void
     {
         if (!\is_scalar($ExpectationFailedException)) {
             throw new AssertionFailedError($message ?: 'Not scalar');
@@ -118,7 +118,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertIsString($actual, $message = ''): void
+    public static function assertIsString($actual, string $message = ''): void
     {
         if (!\is_string($actual)) {
             throw new AssertionFailedError($message ?: 'Not string');
@@ -126,7 +126,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertStringContainsString($needle, $haystack, $message = ''): void
+    public static function assertStringContainsString(string $needle, string $haystack, string $message = ''): void
     {
         if (\strpos($haystack, $needle) === false) {
             throw new AssertionFailedError($message ?: 'Does not contain string');
@@ -134,7 +134,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertStringNotContainsString($needle, $haystack, $message = ''): void
+    public static function assertStringNotContainsString(string $needle, string $haystack, string $message = ''): void
     {
         if (\strpos($haystack, $needle) !== false) {
             throw new AssertionFailedError($message ?: 'String contains string');
@@ -142,7 +142,7 @@ trait AssertionTrait
         TestCase::assertTrue(true);
     }
 
-    public static function assertMatchesRegularExpression($pattern, $string, $message = ''): void
+    public static function assertMatchesRegularExpression(string $pattern, string $string, string $message = ''): void
     {
         throw new AssertionFailedError('assertMatchesRegularExpression not yet implemented');
     }

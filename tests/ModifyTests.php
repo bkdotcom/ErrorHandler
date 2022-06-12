@@ -26,6 +26,7 @@ class ModifyTests
     {
         $this->dir = $dir;
         $this->removeReturnType();
+        $this->removeTypeHint();
         \register_shutdown_function(array($this, 'revert'));
     }
 
@@ -73,6 +74,50 @@ class ModifyTests
         });
     }
 
+    public function removeTypeHint()
+    {
+        if (PHP_VERSION_ID >= 70100) {
+            return;
+        }
+        // remove string/bool param type hints from < 7.1
+        $this->findFiles($this->dir, function ($filepath) {
+            if (\preg_match('/\.php$/', $filepath) === 0) {
+                return false;
+            }
+            if (\preg_match('/\b(Mock|Fixture)\b/', $filepath) === 1) {
+                return false;
+            }
+            $count = 0;
+            $content = \preg_replace_callback(
+                '/(function \S+\s*\()([^)]*)(\))/',
+                function ($matches) use ($filepath, &$count) {
+                    $params = $matches[2];
+                    $paramsNew = \preg_replace('/(string|bool) \$/', '$', $params);
+                    if ($paramsNew === $params) {
+                        return $matches[0];
+                    }
+                    $count++;
+                    if (!isset($this->modifiedFiles[$filepath])) {
+                        $this->modifiedFiles[$filepath] = array();
+                    }
+                    $new = $matches[1] . $paramsNew . $matches[3];
+                    $this->modifiedFiles[$filepath][] = array(
+                        'original' => $matches[0],
+                        'new' => $new,
+                    );
+                    return $new;
+                },
+                \file_get_contents($filepath),
+                -1 // no limit
+            );
+            if ($count > 0) {
+                \file_put_contents($filepath, $content);
+                return true;
+            }
+            return false;
+        });
+    }
+
     /**
      * Revert changes to files
      *
@@ -81,6 +126,7 @@ class ModifyTests
     public function revert()
     {
         foreach ($this->modifiedFiles as $filepath => $changes) {
+            $changes = \array_reverse($changes);
             $content = \file_get_contents($filepath);
             foreach ($changes as $change) {
                 $content = \str_replace($change['new'], $change['original'], $content);
