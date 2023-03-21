@@ -395,8 +395,9 @@ class EmailerTest extends TestBase
 
         \ini_set('error_log', $errorLogWas);
         \unlink($logFile);
+
         \chmod(\dirname($statsFileNew), '0755');
-        // \rmdir(\dirname($statsFileNew));
+        \rmdir(\dirname($statsFileNew));
 
         self::assertStringContainsString(
             'bdk\ErrorHandler\Plugin\StatsStoreFile::dataWrite: error writing data to ' . $statsFileNew,
