@@ -33,8 +33,9 @@ class Stats extends AbstractComponent implements SubscriberInterface
     public function __construct($cfg = array())
     {
         $this->cfg = array(
-            'dataStoreFactory' => static function () {
-                return new StatsStoreFile();
+            'dataStoreFactory' => function () {
+                $cfgDataStore = \array_diff_key($this->cfg, array('dataStoreFactory' => null));
+                return new StatsStoreFile($cfgDataStore);
             }
         );
         $this->setCfg(\array_merge($this->cfg, $cfg));
@@ -131,7 +132,8 @@ class Stats extends AbstractComponent implements SubscriberInterface
      *
      * @return void
      *
-     * @SuppressWarnings(PHPMD.UnusedFormalParameter)     */
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     */
     protected function postSetCfg($cfg = array(), $prev = array())
     {
         $cfgDataStore = \array_diff_key($cfg, array('dataStoreFactory' => null));

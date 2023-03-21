@@ -23,6 +23,16 @@ class EmailerTest extends TestBase
         $this->errorHandler->stats->flush();
     }
 
+    public function tearDown(): void
+    {
+        parent::tearDown();
+        $this->errorHandler->setCfg(array(
+            'stats' => array(
+                'errorStatsFile' => __DIR__ . '/../src/Plugin/error_stats.json',
+            ),
+        ));
+    }
+
     public function testConstruct()
     {
         $_SERVER['SERVER_ADMIN'] = 'foo@bar.com';
@@ -347,9 +357,10 @@ class EmailerTest extends TestBase
             'type' => E_WARNING,
             'message' => 'statData dir should be created',
         ));
+        self::assertTrue(\file_exists($statsFileNew));
         $contents = \file_get_contents($statsFileNew);
-        \set_error_handler(static function () {
-            // ignore error unlinking
+        \set_error_handler(static function ($type, $errMsg) {
+            \fwrite(STDERR, $errMsg);
         });
         \unlink($statsFileNew);
         \rmdir(\dirname($statsFileNew));
@@ -364,8 +375,13 @@ class EmailerTest extends TestBase
         \ini_set('error_log', $logFile);
 
         $statsFileNew = __DIR__ . '/statData/stats.json';
-        \unlink($statsFileNew);
+        $dir = \dirname($statsFileNew);
+        if (\file_exists($dir) === false) {
+            \mkdir($dir, 0755, true);
+        }
+        // \unlink($statsFileNew);
         \chmod(\dirname($statsFileNew), '0555');
+
         $this->errorHandler->setCfg(array(
             'stats' => array(
                 'errorStatsFile' => $statsFileNew,
@@ -379,7 +395,7 @@ class EmailerTest extends TestBase
 
         \ini_set('error_log', $errorLogWas);
         \unlink($logFile);
-        \chmod(\dirname($statsFileNew), '0777');
+        \chmod(\dirname($statsFileNew), '0755');
         // \rmdir(\dirname($statsFileNew));
 
         self::assertStringContainsString(
@@ -410,9 +426,6 @@ class EmailerTest extends TestBase
             'info' => array(),
             'foo' => 'bar',
         ), $stats);
-        $this->errorHandler->stats->setCfg(array(
-            'errorStatsFile' => __DIR__ . '/../src/Plugin/error_stats.json',
-        ));
     }
 
     public function backtraceDumper($backtrace)

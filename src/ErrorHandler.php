@@ -76,7 +76,7 @@ class ErrorHandler extends AbstractErrorHandler
             // stats options
             'enableStats' => false,
             'stats' => array(
-                'errorStatsFile' => __DIR__ . '/error_stats.json',
+                'errorStatsFile' => __DIR__ . '/Plugin/error_stats.json',
             ),
         );
         // Initialize self::$instance if not set

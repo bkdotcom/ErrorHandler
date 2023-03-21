@@ -229,7 +229,8 @@ class StatsStoreFile extends AbstractComponent implements StatsStoreInterface
      *
      * @return void
      *
-     * @SuppressWarnings(PHPMD.UnusedFormalParameter)     */
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     */
     protected function postSetCfg($cfg = array(), $prev = array())
     {
         if (isset($cfg['errorStatsFile']) && $cfg['errorStatsFile'] !== $prev['errorStatsFile']) {
