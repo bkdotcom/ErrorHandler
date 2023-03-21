@@ -25,7 +25,7 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'file' => __FILE__,
             'line' => __LINE__,
         ));
-        $this->assertSame(
+        self::assertSame(
             array(
                 'file' => '/path/to/file.php',
                 'line' => 42,
@@ -71,7 +71,7 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'line' => __LINE__,
             'exception' => $exception,
         ));
-        $this->assertSame($exception, $error->asException());
+        self::assertSame($exception, $error->asException());
     }
 
     public function testGetMessage()
@@ -88,9 +88,9 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'file' => __FILE__,
             'line' => __LINE__,
         ));
-        $this->assertSame($msgOrig, $error['message']);
-        $this->assertSame($expectHtmlEscaped, $error->getMessageHtml());
-        $this->assertSame($expectText, $error->getMessageText());
+        self::assertSame($msgOrig, $error['message']);
+        self::assertSame($expectHtmlEscaped, $error->getMessageHtml());
+        self::assertSame($expectText, $error->getMessageText());
 
         \ini_set('html_errors', 1);
         $error = new Error($this->errorHandler, array(
@@ -99,9 +99,9 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'file' => __FILE__,
             'line' => __LINE__,
         ));
-        $this->assertSame($expectHtml, $error['message']);
-        $this->assertSame($expectHtml, $error->getMessageHtml());
-        $this->assertSame($expectText, $error->getMessageText());
+        self::assertSame($expectHtml, $error['message']);
+        self::assertSame($expectHtml, $error->getMessageHtml());
+        self::assertSame($expectText, $error->getMessageText());
 
         \ini_set('html_errors', 0);
     }
@@ -119,7 +119,7 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'line' => __LINE__,
             'exception' => $exception,
         ));
-        $this->assertNull($error->getTrace());
+        self::assertNull($error->getTrace());
     }
 
     public function testGetTrace()
@@ -134,7 +134,7 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'exception' => $exception,
         ));
         $trace = $error->getTrace();
-        $this->assertSame(array(
+        self::assertSame(array(
             'args' => array(),
             'evalLine' => null,
             'file' => __FILE__,
@@ -162,8 +162,8 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             $line++ => '        ));' . "\n",
             $line++ => '        $context = $error[\'context\'];' . "\n",
         );
-        $this->assertCount(13, $context);
-        $this->assertSame($linesExpect, \array_intersect_assoc($context, $linesExpect));
+        self::assertCount(13, $context);
+        self::assertSame($linesExpect, \array_intersect_assoc($context, $linesExpect));
     }
 
     public function testLog()
@@ -181,7 +181,7 @@ class ErrorTest extends TestBase // extends DebugTestFramework
         $logContents = \file_get_contents($file);
         \unlink($file);
         \ini_set('error_log', $errorLogWas);
-        $this->assertStringContainsString('PHP Warning: dang in ' . __FILE__ . ' on line ' . $error['line'], $logContents);
+        self::assertStringContainsString('PHP Warning: dang in ' . __FILE__ . ' on line ' . $error['line'], $logContents);
     }
 
     public function testPrevNotSuppressed()
@@ -194,12 +194,12 @@ class ErrorTest extends TestBase // extends DebugTestFramework
         );
         $this->raiseError($errorVals);
         $error = $this->raiseError($errorVals);
-        $this->assertFalse($error['isSuppressed']);
+        self::assertFalse($error['isSuppressed']);
     }
 
     public function testTypeStr()
     {
-        $this->assertSame('User Error', Error::typeStr(E_USER_ERROR));
-        $this->assertSame('', Error::typeStr('bogus'));
+        self::assertSame('User Error', Error::typeStr(E_USER_ERROR));
+        self::assertSame('', Error::typeStr('bogus'));
     }
 }

@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
  */
 class AbstractComponentTest extends TestCase
 {
+    protected $obj = null;
+
     public function setUp(): void
     {
         $this->obj = new ExtendsComponent();
@@ -17,28 +19,28 @@ class AbstractComponentTest extends TestCase
 
     public function testGetReadOnly()
     {
-        $this->assertSame('bar', $this->obj->foo);
+        self::assertSame('bar', $this->obj->foo);
     }
 
     public function testGetUnavail()
     {
-        $this->assertNull($this->obj->baz);
+        self::assertNull($this->obj->baz);
     }
 
     public function testGetCfgViaArray()
     {
-        $this->assertSame(true, $this->obj->getCfg(array('doMagic')));
+        self::assertSame(true, $this->obj->getCfg(array('doMagic')));
     }
 
     public function testGetCfgEmptyKey()
     {
-        $this->assertSame(array(
+        self::assertSame(array(
             'doMagic' => true,
         ), $this->obj->getCfg());
     }
 
     public function testGetCfgUndefined()
     {
-        $this->assertNull($this->obj->getCfg('what'));
+        self::assertNull($this->obj->getCfg('what'));
     }
 }

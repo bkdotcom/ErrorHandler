@@ -27,7 +27,7 @@ class EmailerTest extends TestBase
     {
         $_SERVER['SERVER_ADMIN'] = 'foo@bar.com';
         $emailer = new Emailer();
-        $this->assertSame($_SERVER['SERVER_ADMIN'], $emailer->getCfg('emailTo'));
+        self::assertSame($_SERVER['SERVER_ADMIN'], $emailer->getCfg('emailTo'));
     }
 
     /**
@@ -56,13 +56,13 @@ class EmailerTest extends TestBase
             $error = $this->raiseError($errorVals);
             if ($i === 1) {
                 $cfg = $this->errorHandler->emailer->getCfg();
-                $this->assertSame(0, $error['stats']['email']['countSince']);
-                $this->assertSame($cfg['emailTo'], $this->emailInfo['to']);
-                $this->assertSame(
+                self::assertSame(0, $error['stats']['email']['countSince']);
+                self::assertSame($cfg['emailTo'], $this->emailInfo['to']);
+                self::assertSame(
                     'Error: ' . \implode(' ', $_SERVER['argv']) . ': ' . $errorVals['message'],
                     $this->emailInfo['subject']
                 );
-                $this->assertStringMatchesFormat(
+                self::assertStringMatchesFormat(
                     'datetime: %s' . "\n"
                     . 'type: ' . $errorVals['type'] . ' (Warning)' . "\n"
                     . 'message: ' . $errorVals['message'] . "\n"
@@ -74,11 +74,11 @@ class EmailerTest extends TestBase
                     . ')',
                     $this->emailInfo['body']
                 );
-                $this->assertSame('From: php@test.com', $this->emailInfo['addHeadersStr']);
+                self::assertSame('From: php@test.com', $this->emailInfo['addHeadersStr']);
                 $this->emailInfo = array();
             } elseif ($i === 2) {
-                $this->assertSame(1, $error['stats']['email']['countSince']);
-                $this->assertSame(array(), $this->emailInfo);
+                self::assertSame(1, $error['stats']['email']['countSince']);
+                self::assertSame(array(), $this->emailInfo);
 
                 /*
                     Update the data so that the next time it appearas the error hasn't occured for a while
@@ -99,7 +99,7 @@ class EmailerTest extends TestBase
                 ));
                 $dataRef->setValue($dataStore, $data);
             } elseif ($i === 3) {
-                $this->assertStringContainsString('Error has occurred 123 times since last email (' . \date($cfg['dateTimeFmt'], $time6) . ')', $this->emailInfo['body']);
+                self::assertStringContainsString('Error has occurred 123 times since last email (' . \date($cfg['dateTimeFmt'], $time6) . ')', $this->emailInfo['body']);
             }
         }
 
@@ -114,7 +114,7 @@ class EmailerTest extends TestBase
         \ksort($statsError);
         $statsFound = $this->errorHandler->stats->find($error);
         \ksort($statsFound);
-        $this->assertSame($statsError, $statsFound);
+        self::assertSame($statsError, $statsFound);
         $this->errorHandler->setCfg('onError', null);
     }
 
@@ -145,8 +145,8 @@ class EmailerTest extends TestBase
         $this->raiseError($errorVals);
         $serverParamsRef->setValue($this->errorHandler->emailer, $serverParamsWas);
         $_POST = array();
-        $this->assertSame('Website Error: test.com: You are doing it wrong', $this->emailInfo['subject']);
-        $this->assertStringMatchesFormat(
+        self::assertSame('Website Error: test.com: You are doing it wrong', $this->emailInfo['subject']);
+        self::assertStringMatchesFormat(
             'datetime: %s' . "\n"
             . 'type: ' . $errorVals['type'] . ' (Warning)' . "\n"
             . 'message: ' . $errorVals['message'] . "\n"
@@ -178,7 +178,7 @@ class EmailerTest extends TestBase
         $this->errorHandler->emailer->setCfg('emailBacktraceDumper', array($this, 'backtraceDumper'));
         $cfg = $this->errorHandler->emailer->getCfg();
         $this->raiseError($errorVals);
-        $this->assertSame(array(
+        self::assertSame(array(
             'to' => $cfg['emailTo'],
             'subject' => 'Error: ' . \implode(' ', $_SERVER['argv']) . ': ' . $errorVals['message'],
             'body' => 'datetime: ' . \date($cfg['dateTimeFmt']) . "\n"
@@ -215,7 +215,7 @@ class EmailerTest extends TestBase
         );
         $this->raiseError($errorVals);
         $this->errorHandler->setCfg('onError', null);
-        $this->assertStringContainsString('no backtrace', $this->emailInfo['body']);
+        self::assertStringContainsString('no backtrace', $this->emailInfo['body']);
     }
 
     public function testNoEmailOnThrow()
@@ -232,8 +232,8 @@ class EmailerTest extends TestBase
             $this->raiseError($errorVals);
         } catch (\ErrorException $e) {
         }
-        $this->assertNotNull($e);
-        $this->assertSame(array(), $this->emailInfo);
+        self::assertNotNull($e);
+        self::assertSame(array(), $this->emailInfo);
         $this->errorHandler->setCfg('errorThrow', 0);
     }
 
@@ -243,7 +243,7 @@ class EmailerTest extends TestBase
             'emailThrottledSummary' => false,
         ));
         $this->errorHandler->eventManager->publish(EventManager::EVENT_PHP_SHUTDOWN);
-        $this->assertSame(array(), $this->emailInfo);
+        self::assertSame(array(), $this->emailInfo);
         $this->errorHandler->setCfg('emailer', array(
             'emailThrottledSummary' => true,
         ));
@@ -261,14 +261,14 @@ class EmailerTest extends TestBase
         $statsWas = $statsRef->getValue($this->errorHandler->emailer);
         $statsRef->setValue($this->errorHandler->emailer, null);
         $this->errorHandler->eventManager->publish(EventManager::EVENT_PHP_SHUTDOWN);
-        $this->assertSame(array(), $this->emailInfo);
+        self::assertSame(array(), $this->emailInfo);
         $statsRef->setValue($this->errorHandler->emailer, $statsWas);
     }
 
     public function testOnShutdownNoSummaryErrors()
     {
         $this->errorHandler->eventManager->publish(EventManager::EVENT_PHP_SHUTDOWN);
-        $this->assertSame(array(), $this->emailInfo);
+        self::assertSame(array(), $this->emailInfo);
     }
 
     public function testOnShutdownGarbageCollectedError()
@@ -319,10 +319,10 @@ class EmailerTest extends TestBase
         $dataWriteRef->setAccessible(true);
         $dataWriteRef->invoke($dataStore);
         $this->errorHandler->eventManager->publish(EventManager::EVENT_PHP_SHUTDOWN);
-        $this->assertNotEmpty($this->errorHandler->stats->find('errorhash1'));
-        $this->assertEmpty($this->errorHandler->stats->find('errorhash2'));
+        self::assertNotEmpty($this->errorHandler->stats->find('errorhash1'));
+        self::assertEmpty($this->errorHandler->stats->find('errorhash2'));
         $cfg = $this->errorHandler->getCfg('emailer');
-        $this->assertSame(array(
+        self::assertSame(array(
             'to' => $cfg['emailTo'],
             'subject' => 'Server Errors: ' . \implode(' ', $_SERVER['argv']),
             'body' => 'File: /path/to/file.php' . "\n"
@@ -350,7 +350,7 @@ class EmailerTest extends TestBase
         $contents = \file_get_contents($statsFileNew);
         \unlink($statsFileNew);
         \rmdir(\dirname($statsFileNew));
-        $this->assertNotEmpty($contents);
+        self::assertNotEmpty($contents);
     }
 
     public function testDataWriteFail()
@@ -378,7 +378,7 @@ class EmailerTest extends TestBase
         \chmod(\dirname($statsFileNew), '0777');
         // \rmdir(\dirname($statsFileNew));
 
-        $this->assertStringContainsString(
+        self::assertStringContainsString(
             'bdk\ErrorHandler\Plugin\StatsStoreFile::dataWrite: error writing data to ' . $statsFileNew,
             $logFileContents
         );
@@ -402,7 +402,7 @@ class EmailerTest extends TestBase
         ));
         $stats = $this->errorHandler->stats->find('notarealhash');
         \unlink($fileNew);
-        $this->assertSame(array(
+        self::assertSame(array(
             'info' => array(),
             'foo' => 'bar',
         ), $stats);
