@@ -17,7 +17,7 @@ use bdk\ErrorHandler\Plugin\StatsStoreFile;
 use bdk\PubSub\SubscriberInterface;
 
 /**
- * Keep track of when errors were last emailed
+ * Keep track of when errors were last emailed or other
  *
  * @property array $summaryErrors
  */
@@ -33,7 +33,7 @@ class Stats extends AbstractComponent implements SubscriberInterface
     public function __construct($cfg = array())
     {
         $this->cfg = array(
-            'dataStoreFactory' => function () {
+            'dataStoreFactory' => static function () {
                 return new StatsStoreFile();
             }
         );

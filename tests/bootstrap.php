@@ -9,8 +9,8 @@ $classMap = array(
     'PHPUnit_Framework_Constraint_IsType' => 'PHPUnit\Framework\Constraint\IsType',
 );
 foreach ($classMap as $old => $new) {
-    if (!class_exists($new)) {
-        class_alias($old, $new);
+    if (!\class_exists($new)) {
+        \class_alias($old, $new);
     }
 }
 

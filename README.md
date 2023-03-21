@@ -21,7 +21,7 @@ See http://www.bradkent.com/php/errorhandler for more information
 See http://www.bradkent.com/php/errorhandler
 
 ### Tests / Quality
-![Build Status](https://img.shields.io/github/workflow/status/bkdotcom/ErrorHandler/PHPUnit.svg?logo=github)
+![Build Status](https://img.shields.io/github/actions/workflow/status/bkdotcom/ErrorHandler/phpunit.yml.svg?logo=github)
 [![Maintainability](https://img.shields.io/codeclimate/maintainability/bkdotcom/ErrorHandler.svg?logo=codeclimate)](https://codeclimate.com/github/bkdotcom/ErrorHandler)
 [![Code Coverage](https://img.shields.io/codeclimate/bkdotcom/ErrorHandler.svg?logo=codeclimate)](https://codeclimate.com/github/bkdotcom/ErrorHandler)
 

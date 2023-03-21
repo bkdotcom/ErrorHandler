@@ -11,7 +11,7 @@ jobs:
       matrix:
         # windows-latest, macOS-latest
         operating-system: [ubuntu-latest]
-        php-version: ['5.4', '5.5', '5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1']
+        php-version: ['5.4', '5.5', '5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2']
     name: PHP ${{ matrix.php-version }} Test on ${{ matrix.operating-system }}
     steps:
     - name: Checkout
@@ -36,12 +36,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-php-
     - name: Install dependencies
-      run: composer install --prefer-dist --no-progress
+      run: |
+        composer --version
+        composer install --prefer-dist --no-progress
     - name: Unit test
       run: composer run test
     - name: Publish code coverage
       uses: paambaati/codeclimate-action@v3.0.0
-      if: matrix.php-version == '8.1'
+      if: matrix.php-version == '8.2'
       continue-on-error: true
       env:
         CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}

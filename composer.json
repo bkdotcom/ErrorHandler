@@ -31,7 +31,7 @@
 	},
 	"require": {
 		"php": ">=5.4.0",
-		"bdk/backtrace": "^2.1",
+		"bdk/backtrace": "^2.1.1",
 		"bdk/pubsub": "^2.4"
 	},
 	"require-dev": {
