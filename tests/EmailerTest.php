@@ -348,8 +348,12 @@ class EmailerTest extends TestBase
             'message' => 'statData dir should be created',
         ));
         $contents = \file_get_contents($statsFileNew);
+        \set_error_handler(static function () {
+            // ignore error unlinking
+        });
         \unlink($statsFileNew);
         \rmdir(\dirname($statsFileNew));
+        \restore_error_handler();
         self::assertNotEmpty($contents);
     }
 
