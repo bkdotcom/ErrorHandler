@@ -140,11 +140,11 @@ class ErrorHandlerTest extends TestBase
             'errorReporting',
             'errorThrow',
             'onError',
-            'onFirstError',
             'onEUserError',
+            'onFirstError',
             'suppressNever',
-            'enableEmailer',
             'emailer',
+            'enableEmailer',
             'enableStats',
             'stats',
         ), \array_keys($this->errorHandler->getCfg()));

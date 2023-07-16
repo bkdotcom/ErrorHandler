@@ -48,10 +48,10 @@ class EmailerTest extends TestBase
     public function testEmailOnError()
     {
         $errorVals = array(
-            'type' => E_WARNING,
-            'message' => 'Division by zero',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'Division by zero',
+            'type' => E_WARNING,
         );
         $onError = function (Error $error) {
             $error['vars'] = array(
@@ -115,10 +115,10 @@ class EmailerTest extends TestBase
 
         $statsError = \array_merge(array(
             'info' => array(
-                'type' => $error['type'],
-                'message' => $error['message'],
                 'file' => $error['file'],
                 'line' => $error['line'],
+                'message' => $error['message'],
+                'type' => $error['type'],
             ),
         ), $error['stats']);
         \ksort($statsError);
@@ -131,10 +131,10 @@ class EmailerTest extends TestBase
     public function testEmailOnErrorNotCli()
     {
         $errorVals = array(
-            'type' => E_WARNING,
-            'message' => 'You are doing it wrong',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'You are doing it wrong',
+            'type' => E_WARNING,
         );
         $serverParamsRef = new \ReflectionProperty('bdk\\ErrorHandler\\Plugin\\Emailer', 'serverParams');
         $serverParamsRef->setAccessible(true);
@@ -180,10 +180,10 @@ class EmailerTest extends TestBase
     public function testEmailOnErrorCustomDumper()
     {
         $errorVals = array(
-            'type' => E_WARNING,
-            'message' => 'Danger Will Robinson',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'Danger Will Robinson',
+            'type' => E_WARNING,
         );
         $this->errorHandler->emailer->setCfg('emailBacktraceDumper', array($this, 'backtraceDumper'));
         $cfg = $this->errorHandler->emailer->getCfg();
@@ -218,10 +218,10 @@ class EmailerTest extends TestBase
         };
         $this->errorHandler->setCfg('onError', $onError);
         $errorVals = array(
-            'type' => E_WARNING,
-            'message' => 'Division by zero',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'Division by zero',
+            'type' => E_WARNING,
         );
         $this->raiseError($errorVals);
         $this->errorHandler->setCfg('onError', null);
@@ -231,10 +231,10 @@ class EmailerTest extends TestBase
     public function testNoEmailOnThrow()
     {
         $errorVals = array(
-            'type' => E_WARNING,
-            'message' => 'Some error',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'Some error',
+            'type' => E_WARNING,
         );
         $this->errorHandler->setCfg('errorThrow', E_WARNING);
         $e = null;
@@ -332,10 +332,12 @@ class EmailerTest extends TestBase
         self::assertNotEmpty($this->errorHandler->stats->find('errorhash1'));
         self::assertEmpty($this->errorHandler->stats->find('errorhash2'));
         $cfg = $this->errorHandler->getCfg('emailer');
+        $request = \implode(' ', $_SERVER['argv']);
         self::assertSame(array(
             'to' => $cfg['emailTo'],
-            'subject' => 'Server Errors: ' . \implode(' ', $_SERVER['argv']),
-            'body' => 'File: /path/to/file.php' . "\n"
+            'subject' => 'Server Errors: ' . $request,
+            'body' => 'This summary sent via ' . $request . "\n\n"
+                . 'File: /path/to/file.php' . "\n"
                 . 'Line: 42' . "\n"
                 . 'Error: Warning: error message 2' . "\n"
                 . 'Has occured 123 times since ' . \date($this->errorHandler->emailer->getCfg('dateTimeFmt'), $ts24) . "\n"
