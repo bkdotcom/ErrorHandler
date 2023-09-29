@@ -41,7 +41,7 @@
     },
     "scripts": {
         "coverage" : [
-            "vendor/bin/phpunit -v --coverage-clover coverage/clover.xml --coverage-html coverage/html"
+            "vendor/bin/phpunit -v --coverage-clover coverage/clover.xml --coverage-html coverage/html",
             "cp vendor/bdk/devutil/src/htmlCoverageCustom.css coverage/html/_css/custom.css",
             "php -f vendor/bdk/devutil/src/coverageChecker.php -- coverage/clover.xml"
         ],
