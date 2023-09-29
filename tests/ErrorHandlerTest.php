@@ -593,7 +593,9 @@ class ErrorHandlerTest extends TestBase
             $trace = $e->getTrace();
             self::assertSame($errorVals['file'], $trace[1]['file']);
             self::assertSame($backtraceLine, $trace[1]['line']);
-            self::assertSame('bdk\\ErrorHandlerTests\\ErrorHandlerTest->raiseError', $trace[1]['function']);
+            PHP_VERSION_ID >= 70000
+                ? self::assertSame('bdk\\ErrorHandlerTests\\ErrorHandlerTest->raiseError', $trace[1]['function'])
+                : self::assertSame('bdk\\ErrorHandlerTests\\TestBase->raiseError', $trace[1]['function']);
             self::assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[2]['function']);
         }
         $errorVals = array(
