@@ -4,8 +4,8 @@ namespace bdk\ErrorHandlerTests;
 
 use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
-use bdk\ErrorHandlerTests\PolyFill\AssertionTrait;
-use bdk\ErrorHandlerTests\PolyFill\ExpectExceptionTrait;
+use bdk\PhpUnitPolyfill\AssertionTrait;
+use bdk\PhpUnitPolyfill\ExpectExceptionTrait;
 use bdk\PubSub\Manager as EventManager;
 use PHPUnit\Framework\TestCase;
 
@@ -95,9 +95,9 @@ class TestBase extends TestCase
             'file' => '/path/to/file.php',
             'line' => 42,
         ), $vals);
-        $addVals = \array_diff_key($vals, \array_flip(array('type','message','file','line')));
+        $addVals = \array_diff_key($vals, \array_flip(array('type', 'message', 'file', 'line')));
         if ($addVals) {
-            $callable = function (Error $error) use ($addVals) {
+            $callable = static function (Error $error) use ($addVals) {
                 foreach ($addVals as $k => $v) {
                     $error[$k] = $v;
                 }

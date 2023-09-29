@@ -490,8 +490,6 @@ class ErrorHandlerTest extends TestBase
             $lines = \array_merge(array(null), \file($error['file']));
             $lines = \array_slice($lines, $callLine - 9, 19, true);
             self::assertSame(array(
-                'args' => array(),
-                'evalLine' => null,
                 'file' => $error['file'],
                 'line' => $callLine,
                 'context' => $lines,
@@ -595,7 +593,7 @@ class ErrorHandlerTest extends TestBase
             $trace = $e->getTrace();
             self::assertSame($errorVals['file'], $trace[1]['file']);
             self::assertSame($backtraceLine, $trace[1]['line']);
-            self::assertSame('bdk\\ErrorHandlerTests\\TestBase->raiseError', $trace[1]['function']);
+            self::assertSame('bdk\\ErrorHandlerTests\\ErrorHandlerTest->raiseError', $trace[1]['function']);
             self::assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[2]['function']);
         }
         $errorVals = array(

@@ -5,14 +5,17 @@
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright 2014-2023 Brad Kent
- * @version   v3.2
+ * @version   v3.3
  */
 
 namespace bdk\ErrorHandler;
 
 use bdk\ErrorHandler;
 use bdk\PubSub\Event;
+use ErrorException;
 use InvalidArgumentException;
+use ParseError;
+use ReflectionProperty;
 
 /**
  * Error object
@@ -122,24 +125,38 @@ class Error extends Event
      *
      * If error is an uncaught exception, the original Exception will be returned
      *
-     * @return \Exception|\ErrorException
+     * @return \Exception|ErrorException
      */
     public function asException()
     {
         if ($this->values['exception']) {
             return $this->values['exception'];
         }
-        $exception = new \ErrorException(
+        $exception = new ErrorException(
             $this->values['message'],
             0,
             $this->values['type'],
             $this->values['file'],
             $this->values['line']
         );
-        $traceReflector = new \ReflectionProperty('Exception', 'trace');
+        $traceReflector = new ReflectionProperty('Exception', 'trace');
         $traceReflector->setAccessible(true);
         $traceReflector->setValue($exception, $this->getTrace() ?: array());
         return $exception;
+    }
+
+    /**
+     * Get php code surrounding error
+     *
+     * @return array|false
+     */
+    public function getContext()
+    {
+        return $this->subject->backtrace->getFileLines(
+            $this->values['file'],
+            \max($this->values['line'] - 6, 0),
+            13
+        );
     }
 
     /**
@@ -180,7 +197,7 @@ class Error extends Event
      */
     public function getTrace($withContext = 'auto')
     {
-        if ($this->values['exception'] instanceof \ParseError) {
+        if ($this->values['exception'] instanceof ParseError) {
             return null;
         }
         $trace = $this->values['exception']
@@ -239,15 +256,7 @@ class Error extends Event
     public function &offsetGet($key)
     {
         if ($key === 'backtrace') {
-            $trace = $this->getTrace();
-            return $trace;
-        } elseif ($key === 'context') {
-            $context = $this->subject->backtrace->getFileLines(
-                $this->values['file'],
-                \max($this->values['line'] - 6, 0),
-                13
-            );
-            return $context;
+            $key = 'trace';
         }
         return parent::offsetGet($key);
     }
@@ -260,12 +269,12 @@ class Error extends Event
         $this->setValuesInit($values);
         $errType = $values['type'];
         $hash = $this->hash($values);
-        $prevOccurance = $this->subject->get('error', $hash);
-        $isSuppressed = $this->isSuppressed($prevOccurance);
+        $prevOccurrence = $this->subject->get('error', $hash);
+        $isSuppressed = $this->isSuppressed($prevOccurrence);
         $this->values = \array_merge(
             $this->values,
             array(
-                'continueToNormal' => $this->setContinueToNormal($isSuppressed, $prevOccurance === null),
+                'continueToNormal' => $this->setContinueToNormal($isSuppressed, $prevOccurrence === null),
                 'continueToPrevHandler' => $this->subject->getCfg('continueToPrevHandler'),
                 'throw' => $this->isFatal() === false && ($errType & $this->subject->getCfg('errorThrow')) === $errType,
             ),
@@ -273,7 +282,7 @@ class Error extends Event
             array(
                 'category' => $this->values['category'],
                 'hash' => $hash,
-                'isFirstOccur' => !$prevOccurance,
+                'isFirstOccur' => !$prevOccurrence,
                 'isHtml' => $this->isHtml(),
                 'isSuppressed' => $isSuppressed,
                 'message' => $this->isHtml()
@@ -378,13 +387,13 @@ class Error extends Event
     /**
      * Get initial `isSuppressed` value
      *
-     * @param self|null $prevOccurance previous occurrence of current error
+     * @param self|null $prevOccurrence previous occurrence of current error
      *
      * @return bool
      */
-    private function isSuppressed($prevOccurance = null)
+    private function isSuppressed($prevOccurrence = null)
     {
-        if ($prevOccurance && !$prevOccurance['isSuppressed']) {
+        if ($prevOccurrence && !$prevOccurrence['isSuppressed']) {
             // if any instance of this error was not supprssed, reflect that
             return false;
         }
@@ -399,14 +408,14 @@ class Error extends Event
     /**
      * Set continueToNormal flag
      *
-     * @param bool $isSuppressed     Whether error is suppressed
-     * @param bool $isFirstOccurance Whether this is errors' first occurance durring this request
+     * @param bool $isSuppressed      Whether error is suppressed
+     * @param bool $isFirstOccurrence Whether this is errors' first occurrence during this request
      *
      * @return bool
      */
-    private function setContinueToNormal($isSuppressed, $isFirstOccurance)
+    private function setContinueToNormal($isSuppressed, $isFirstOccurrence)
     {
-        $continueToNormal = $isSuppressed === false && $isFirstOccurance;
+        $continueToNormal = $isSuppressed === false && $isFirstOccurrence;
         if ($continueToNormal === false || $this->values['category'] !== self::CAT_ERROR) {
             return $continueToNormal;
         }

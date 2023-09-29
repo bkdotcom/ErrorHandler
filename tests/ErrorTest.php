@@ -135,10 +135,11 @@ class ErrorTest extends TestBase // extends DebugTestFramework
         ));
         $trace = $error->getTrace();
         self::assertSame(array(
-            'args' => array(),
-            'evalLine' => null,
+            // 'args' => array(),
+            // 'evalLine' => null,
             'file' => __FILE__,
             'line' => $line,
+            // 'object' => null,
         ), $trace[0]);
     }
 
