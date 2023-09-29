@@ -17,7 +17,7 @@ jobs:
       with:
         php-version: ${{ matrix.php-version }}
         extensions: intl
-        ini-values: "post_max_size=256M, memory_limit=512M, xdebug.mode="debug,coverage,develop"
+        ini-values: post_max_size=256M, memory_limit=512M, xdebug.mode="debug,coverage,develop"
         coverage: xdebug #optional
     - name: Check PHP Version
       run: php -v
