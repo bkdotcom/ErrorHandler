@@ -490,6 +490,7 @@ class ErrorHandlerTest extends TestBase
             $lines = \array_merge(array(null), \file($error['file']));
             $lines = \array_slice($lines, $callLine - 9, 19, true);
             self::assertSame(array(
+                'evalLine' => null,
                 'file' => $error['file'],
                 'line' => $callLine,
                 'context' => $lines,
@@ -552,8 +553,9 @@ class ErrorHandlerTest extends TestBase
         $this->setErrorCallerHelper();
         $errorCaller = $this->errorHandler->get('errorCaller');
         self::assertSame(array(
+            'evalLine' => null,
             'file' => __FILE__,
-            'line' => __LINE__ - 4,
+            'line' => __LINE__ - 5,
         ), $errorCaller);
     }
 
