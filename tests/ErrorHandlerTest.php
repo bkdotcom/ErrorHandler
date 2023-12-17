@@ -82,9 +82,9 @@ class ErrorHandlerTest extends TestBase
     {
         $instanceRef = new \ReflectionProperty('bdk\\ErrorHandler', 'instance');
         $instanceRef->setAccessible(true);
-        $instanceRef->setValue(null);
+        $instanceRef->setValue(null, null);
         $errorHandler = new ErrorHandler($this->errorHandler->eventManager);
-        $instanceRef->setValue($this->errorHandler);
+        $instanceRef->setValue(null, $this->errorHandler);
         self::assertInstanceOf('bdk\\ErrorHandler', $errorHandler);
         $errorHandler->unregister();
     }
@@ -595,7 +595,7 @@ class ErrorHandlerTest extends TestBase
             $trace = $e->getTrace();
             self::assertSame($errorVals['file'], $trace[1]['file']);
             self::assertSame($backtraceLine, $trace[1]['line']);
-            PHP_VERSION_ID >= 70000
+            PHP_VERSION_ID >= 70000 && PHP_VERSION_ID < 80300
                 ? self::assertSame('bdk\\ErrorHandlerTests\\ErrorHandlerTest->raiseError', $trace[1]['function'])
                 : self::assertSame('bdk\\ErrorHandlerTests\\TestBase->raiseError', $trace[1]['function']);
             self::assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[2]['function']);
