@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandlerTests\Fixture;
+namespace bdk\Test\ErrorHandler\Fixture;
 
 use bdk\ErrorHandler\AbstractComponent;
 

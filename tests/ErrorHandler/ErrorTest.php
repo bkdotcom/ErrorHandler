@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandlerTests;
+namespace bdk\Test\ErrorHandler;
 
 use bdk\ErrorHandler\Error;
 
@@ -8,6 +8,7 @@ use bdk\ErrorHandler\Error;
  * PHPUnit tests
  *
  * @covers \bdk\ErrorHandler
+ * @covers \bdk\ErrorHandler\AbstractError
  * @covers \bdk\ErrorHandler\AbstractErrorHandler
  * @covers \bdk\ErrorHandler\Error
  */
@@ -61,17 +62,50 @@ class ErrorTest extends TestBase // extends DebugTestFramework
         new Error($this->errorHandler, $this->randoErrorVals(false, array('vars' => null)));
     }
 
+    public function testAnonymous()
+    {
+        if (PHP_VERSION_ID < 70000) {
+            $this->markTestSkipped('anonymous classes are a php 7.0 thing');
+        }
+        // self::$allowError = true;
+        $anonymous = require __DIR__ . '/Fixture/Anonymous.php';
+
+        $error = new Error($this->errorHandler, array(
+            'file' => 'foo.bar',
+            'line' => 12,
+            'message' => 'foo ' . \get_class($anonymous) . ' bar',
+            'type' => E_WARNING,
+        ));
+        self::assertSame('foo stdClass@anonymous bar', $error['message']);
+    }
+
     public function testAsException()
     {
         $exception = new \Exception('exception notice!');
         $error = new Error($this->errorHandler, array(
-            'type' => E_NOTICE,
-            'message' => 'some notice',
+            'exception' => $exception,
             'file' => __FILE__,
             'line' => __LINE__,
-            'exception' => $exception,
+            'message' => 'some notice',
+            'type' => E_NOTICE,
         ));
         self::assertSame($exception, $error->asException());
+    }
+
+    public function testGetFileAndLine()
+    {
+        $line = __LINE__;
+        $evalLine = 42;
+        $error = new Error($this->errorHandler, array(
+            'file' => __FILE__ . '(' . $line . ') : eval()\'d code',
+            'line' => $evalLine,
+            'message' => 'Some notice',
+            'type' => E_NOTICE,
+        ));
+        $this->assertSame(
+            \sprintf('%s (line %s, eval\'d line %s)', __FILE__, $line, $evalLine),
+            $error->getFileAndLine()
+        );
     }
 
     public function testGetMessage()
@@ -88,7 +122,7 @@ class ErrorTest extends TestBase // extends DebugTestFramework
             'file' => __FILE__,
             'line' => __LINE__,
         ));
-        self::assertSame($msgOrig, $error['message']);
+        self::assertSame($expectText, $error['message']);
         self::assertSame($expectHtmlEscaped, $error->getMessageHtml());
         self::assertSame($expectText, $error->getMessageText());
 

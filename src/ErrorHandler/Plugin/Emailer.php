@@ -4,7 +4,7 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2023 Brad Kent
+ * @copyright 2014-2024 Brad Kent
  * @version   v3.2
  */
 
@@ -25,8 +25,10 @@ use bdk\PubSub\SubscriberInterface;
  */
 class Emailer extends AbstractComponent implements SubscriberInterface
 {
-    /** @var bdk\ErrorHandler\Plugin\Stats */
+    /** @var \bdk\ErrorHandler\Plugin\Stats */
     private $stats = null;
+
+    /** @var array<string,mixed> */
     protected $serverParams = array();
 
     /**
@@ -126,7 +128,7 @@ class Emailer extends AbstractComponent implements SubscriberInterface
 
     /**
      * Php shutdown event listener
-     * Send a summary of errors that have not occured recently, but have occured since notification
+     * Send a summary of errors that have not occurred recently, but have occurred since notification
      *
      * @return void
      */
@@ -233,14 +235,15 @@ class Emailer extends AbstractComponent implements SubscriberInterface
                 'referer: ' . (isset($this->serverParams['HTTP_REFERER'])
                     ? $this->serverParams['HTTP_REFERER']
                     : 'null'),
-                'request_uri: ' . $this->serverParams['REQUEST_URI'],
+                'request method: ' . $this->serverParams['REQUEST_METHOD'],
+                'request uri: ' . $this->serverParams['REQUEST_URI'],
             )) . "\n";
         }
         return $string;
     }
 
     /**
-     * Build summary of errors that haven't occured in a while
+     * Build summary of errors that haven't occurred in a while
      *
      * @param array $errors errors to include in summary
      *
@@ -257,7 +260,7 @@ class Emailer extends AbstractComponent implements SubscriberInterface
         foreach ($errors as $errStats) {
             $countSinceLine = isset($errStats['email'])
                 ? \sprintf(
-                    'Has occured %s times since %s' . "\n",
+                    'Has occurred %s times since %s' . "\n",
                     $errStats['email']['countSince'],
                     \date($this->cfg['dateTimeFmt'], $errStats['email']['timestamp'])
                 )

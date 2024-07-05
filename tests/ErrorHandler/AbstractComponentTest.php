@@ -1,8 +1,8 @@
 <?php
 
-namespace bdk\ErrorHandlerTests;
+namespace bdk\Test\ErrorHandler;
 
-use bdk\ErrorHandlerTests\Fixture\ExtendsComponent;
+use bdk\Test\ErrorHandler\Fixture\ExtendsComponent;
 use PHPUnit\Framework\TestCase;
 
 /**

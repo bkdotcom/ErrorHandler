@@ -4,20 +4,26 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2023 Brad Kent
+ * @copyright 2014-2024 Brad Kent
  * @version   v3.3
  */
 
 namespace bdk\ErrorHandler;
+
+use OutOfBoundsException;
 
 /**
  * Base "component" methods
  */
 class AbstractComponent
 {
-    /** @var array */
+    /** @var array<string,mixed> */
     protected $cfg = array();
+
+    /** @var list<string> */
     protected $readOnly = array();
+
+    /** @var callable */
     protected $setCfgMergeCallable = 'array_replace_recursive';
 
     /**
@@ -41,6 +47,26 @@ class AbstractComponent
             return $this->{$prop};
         }
         return null;
+    }
+
+    /**
+     * Magic setter
+     *
+     * @param string $prop  Property name
+     * @param mixed  $value Property value
+     *
+     * @return void
+     *
+     * @throws OutOfBoundsException if key does not exist or is read only
+     */
+    public function __set($prop, $value)
+    {
+        $setter = 'set' . \ucfirst($prop);
+        if (\method_exists($this, $setter)) {
+            $this->{$setter}($value);
+            return;
+        }
+        throw new OutOfBoundsException('Property ' . $prop . ' does not exist or is read-only');
     }
 
     /**
@@ -124,8 +150,6 @@ class AbstractComponent
      * @param array $prev previous config values
      *
      * @return void
-     *
-     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     protected function postSetCfg($cfg = array(), $prev = array())
     {

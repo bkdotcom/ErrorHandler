@@ -4,12 +4,13 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2023 Brad Kent
+ * @copyright 2014-2024 Brad Kent
  * @version   v3.3
  */
 
 namespace bdk;
 
+use bdk\Backtrace;
 use bdk\ErrorHandler\AbstractErrorHandler;
 use bdk\ErrorHandler\Error;
 use bdk\PubSub\Event;
@@ -24,16 +25,19 @@ use bdk\PubSub\Manager as EventManager;
  */
 class ErrorHandler extends AbstractErrorHandler
 {
-    const EVENT_ERROR = 'errorHandler.error';
-
     /** @var EventManager */
     public $eventManager;
-    protected $inShutdown = false;
-    protected $registered = false;
-    protected $prevDisplayErrors = null;
-    protected $prevErrorHandler = null;
-    protected $prevExceptionHandler = null;
 
+    /** @var bool */
+    protected $inShutdown = false;
+
+    /** @var bool */
+    protected $registered = false;
+
+    /** @var string|false previous display_errors setting (false if error getting/setting) */
+    protected $prevDisplayErrors = false;
+
+    /** @var self */
     private static $instance;
 
     /**
@@ -65,11 +69,11 @@ class ErrorHandler extends AbstractErrorHandler
                                     //         if propagation not stopped, call error_log()
                                     //   'normal' : sets error[continueToNormal] = true;
                                     //         php will log error
-                                    //         script will hault
+                                    //         script will halt
                                     //   null : use error's error[continueToNormal] value
                                     //         continueToNormal true -> log
                                     //         continueToNormal false -> continue
-            'onFirstError' => null,     // callable : called on first error..   usefull for lazy-loading subscriberInterface
+            'onFirstError' => null,     // callable : called on first error..   useful for lazy-loading subscriberInterface
             'suppressNever' => E_ERROR | E_PARSE | E_RECOVERABLE_ERROR | E_USER_ERROR,
             // emailer options
             'emailer' => array(),
@@ -174,11 +178,11 @@ class ErrorHandler extends AbstractErrorHandler
     /**
      * Error handler
      *
-     * @param int    $errType error lavel / type (one of PHP's E_* constants)
+     * @param int    $errType error level / type (one of PHP's E_* constants)
      * @param string $errMsg  the error message
      * @param string $file    filepath the error was raised in
      * @param int    $line    the line the error was raised in
-     * @param array  $vars    active symbol table at point error occured
+     * @param array  $vars    active symbol table at point error occurred
      *
      * @return bool false: will be handled by standard PHP error handler
      *              true: we "handled" / will not be handed by PHP error handler
@@ -188,7 +192,6 @@ class ErrorHandler extends AbstractErrorHandler
     public function handleError($errType, $errMsg, $file, $line, $vars = array())
     {
         $error = $this->cfg['errorFactory']($this, $errType, $errMsg, $file, $line, $vars);
-        $this->anonymousCheck($error);
         $this->toStringCheck($error);
         if (!$this->isErrTypeHandled($errType)) {
             // not handled
@@ -203,7 +206,7 @@ class ErrorHandler extends AbstractErrorHandler
         $this->data['errors'][ $error['hash'] ] = $error;
         if (!$error['isSuppressed']) {
             // only clear error caller via non-suppressed error
-            $this->data['errorCaller'] = array();
+            $this->setErrorCaller(array());
             // only publish event for non-suppressed error
             $this->eventManager->publish(self::EVENT_ERROR, $error);
             $this->throwError($error);
@@ -214,7 +217,7 @@ class ErrorHandler extends AbstractErrorHandler
     /**
      * Handle uncaught exceptions
      *
-     * This isn't strictly necesssary...  uncaught exceptions are a fatal error, which we can handle...
+     * This isn't strictly necessary...  uncaught exceptions are a fatal error, which we can handle...
      * However:
      *   * catching backtrace via shutdown function only possible if xdebug installed
      *   * xdebug_get_function_stack's magic seems powerless for uncaught exceptions!
@@ -305,19 +308,6 @@ class ErrorHandler extends AbstractErrorHandler
     }
 
     /**
-     * Set data value
-     *
-     * @param string $key   what
-     * @param mixed  $value value
-     *
-     * @return void
-     */
-    public function setData($key, $value)
-    {
-        $this->data[$key] = $value;
-    }
-
-    /**
      * Set the calling file/line for next error.
      * This override will apply until cleared or error occurs
      *
@@ -335,7 +325,7 @@ class ErrorHandler extends AbstractErrorHandler
     public function setErrorCaller($caller = null, $offset = 0)
     {
         if ($caller === null) {
-            $backtrace = \bdk\Backtrace::get(null, $offset + 3);
+            $backtrace = Backtrace::get(null, $offset + 3);
             $index = isset($backtrace[$offset + 1])
                 ? $offset + 1
                 : \count($backtrace) - 1;
@@ -384,60 +374,6 @@ class ErrorHandler extends AbstractErrorHandler
     }
 
     /**
-     * Conditioanlly pass error or exception to previously defined handler
-     *
-     * @param Error $error Error instance
-     *
-     * @return bool
-     * @throws \Exception
-     */
-    protected function continueToPrevHandler(Error $error)
-    {
-        $this->handleUserError($error);
-        if ($error['continueToPrevHandler'] === false || $error->isPropagationStopped()) {
-            return $error['continueToNormal'] === false;
-        }
-        if ($error['exception']) {
-            $this->continueToPrevHandlerException($error);
-            return $error['continueToNormal'] === false;
-        }
-        if (!$this->prevErrorHandler) {
-            return $error['continueToNormal'] === false;
-        }
-        return \call_user_func(
-            $this->prevErrorHandler,
-            $error['type'],
-            $error['message'],
-            $error['file'],
-            $error['line'],
-            $error['vars']
-        );
-    }
-
-    /**
-     * Restore previous excption handler and re-throw or log exception
-     *
-     * @param Error $error Error instance
-     *
-     * @return void
-     * @throws \Exception
-     */
-    private function continueToPrevHandlerException(Error $error)
-    {
-        if ($this->prevExceptionHandler) {
-            /*
-                re-throw exception vs calling handler directly
-            */
-            \restore_exception_handler();
-            $this->data['uncaughtException'] = null;
-            throw $error['exception'];
-        }
-        if ($error['continueToNormal']) {
-            $error->log();
-        }
-    }
-
-    /**
      * Create Error instance
      *
      * @param self   $handler ErrorHandler instance
@@ -445,7 +381,7 @@ class ErrorHandler extends AbstractErrorHandler
      * @param string $errMsg  the error message
      * @param string $file    filepath the error was raised in
      * @param string $line    the line the error was raised in
-     * @param array  $vars    active symbol table at point error occured
+     * @param array  $vars    active symbol table at point error occurred
      *
      * @return Error
      */

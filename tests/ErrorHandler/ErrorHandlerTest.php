@@ -1,35 +1,35 @@
 <?php
 
-namespace bdk\ErrorHandlerTests;
+namespace bdk\Test\ErrorHandler;
 
 use bdk\ErrorHandler;
 use bdk\ErrorHandler\Error;
-use bdk\PubSub\Event;
 use bdk\PubSub\Manager as EventManager;
 
 /**
  * PHPUnit tests
  *
  * @covers \bdk\ErrorHandler
+ * @covers \bdk\ErrorHandler\AbstractError
  * @covers \bdk\ErrorHandler\AbstractErrorHandler
  * @covers \bdk\ErrorHandler\Error
  */
 class ErrorHandlerTest extends TestBase
 {
-    private $onErrorEvent;
-    private $onErrorUpdate = array();
+    protected $prevErrorHandlerVals = array();
 
     public function setUp(): void
     {
         parent::setUp();
-        $this->errorHandler->eventManager->subscribe(ErrorHandler::EVENT_ERROR, array($this, 'onError'));
         \set_error_handler(array($this, 'errorHandler'));
         \set_exception_handler(array($this, 'exceptionHandler'));  // exceptions won't make it here...   phpunit wraps tests in try/catch
         $this->errorHandler->register();
+        $this->prevErrorHandlerVals = array();
     }
 
     public static function setUpBeforeClass(): void
     {
+        parent::setUpBeforeClass();
         $errorHandler = ErrorHandler::getInstance();
         if (!$errorHandler) {
             return;
@@ -50,34 +50,6 @@ class ErrorHandlerTest extends TestBase
         }
     }
 
-    /**
-     * tearDown is executed after each test
-     *
-     * @return void
-     */
-    public function tearDown(): void
-    {
-        $this->onErrorEvent = null;
-        $this->onErrorUpdate = array();
-        $this->errorHandler->eventManager->unsubscribe(ErrorHandler::EVENT_ERROR, array($this, 'onError'));
-        parent::tearDown();
-    }
-
-    public function onError(Error $error)
-    {
-        foreach ($this->onErrorUpdate as $k => $v) {
-            if ($k === 'stopPropagation') {
-                if ($v) {
-                    $error->stopPropagation();
-                }
-                continue;
-            }
-            $error->setValue($k, $v);
-        }
-        $this->onErrorEvent = $error;
-        $this->onErrorUpdate = array();
-    }
-
     public function testConstructor()
     {
         $instanceRef = new \ReflectionProperty('bdk\\ErrorHandler', 'instance');
@@ -89,20 +61,35 @@ class ErrorHandlerTest extends TestBase
         $errorHandler->unregister();
     }
 
-    public function testContinueToPrevHandler()
+    public function testContinueToPrevHandlerTrue()
     {
-        $this->errorHandler->unregister();
-        // \set_error_handler(null);
-        \restore_error_handler();
-        $this->errorHandler->register();
-
+        $line = __LINE__;
         $error = $this->raiseError(array(
+            'continueToPrevHandler' => true, // default
+            'file' => __FILE__,
+            'line' => $line,
+            'message' => 'exception error',
+            'type' => E_ERROR,
+        ));
+        self::assertSame(array(
             'type' => E_ERROR,
             'message' => 'exception error',
             'file' => __FILE__,
+            'line' => $line,
+        ), $this->prevErrorHandlerVals);
+        self::assertTrue($error['return']);
+    }
+
+    public function testContinueToPrevHandlerFalse()
+    {
+        $error = $this->raiseError(array(
+            'continueToPrevHandler' => false,
+            'file' => __FILE__,
             'line' => __LINE__,
-            'continueToPrevHandler' => true,
+            'message' => 'exception error',
+            'type' => E_ERROR,
         ));
+        self::assertSame(array(), $this->prevErrorHandlerVals);
         self::assertFalse($error['return']);
     }
 
@@ -118,10 +105,10 @@ class ErrorHandlerTest extends TestBase
     public function testAsException()
     {
         $error = new Error($this->errorHandler, array(
-            'type' => E_USER_WARNING,
-            'message' => 'errorException test',
             'file' => __FILE__,
             'line' => 123,
+            'message' => 'errorException test',
+            'type' => E_USER_WARNING,
         ));
         $exception = $error->asException();
         self::assertInstanceOf('ErrorException', $exception);
@@ -180,37 +167,37 @@ class ErrorHandlerTest extends TestBase
     public function testGetLastError()
     {
         $this->raiseError(array(
-            'type' => E_NOTICE,
-            'message' => 'some error',
             'file' => __FILE__,
             'line' => '111',
+            'message' => 'some error',
+            'type' => E_NOTICE,
         ));
         $this->raiseError(array(
-            'type' => E_NOTICE,
-            'message' => 'some suppressed error',
             'file' => __FILE__,
             'line' => '222',
+            'message' => 'some suppressed error',
+            'type' => E_NOTICE,
         ), true);
         $error = $this->errorHandler->getLastError();
         self::assertSame(
             array(
-                'message' => 'some error',
                 'line' => '111',
+                'message' => 'some error',
             ),
             array(
-                'message' => $error['message'],
                 'line' => $error['line'],
+                'message' => $error['message'],
             )
         );
         $error = $this->errorHandler->getLastError(true);
         self::assertSame(
             array(
-                'message' => 'some suppressed error',
                 'line' => '222',
+                'message' => 'some suppressed error',
             ),
             array(
-                'message' => $error['message'],
                 'line' => $error['line'],
+                'message' => $error['message'],
             )
         );
     }
@@ -247,36 +234,31 @@ class ErrorHandlerTest extends TestBase
     public function testHandleError()
     {
         parent::$allowError = true;
-        $error = array(
-            'type' => E_WARNING,
+        $errorVals = array(
             'file' => __FILE__,
             'line' => __LINE__,
-            'vars' => array('foo' => 'bar'),
             'message' => 'test warning',
+            'type' => E_WARNING,
+            'vars' => array('foo' => 'bar'),
         );
         $errorValuesExpect = array(
-            'type'      => E_WARNING,   // int
-            'typeStr'   => 'Warning',   // friendly string version of 'type'
-            'category'  => 'warning',
-            'message'   => $error['message'],
-            'file'      => $error['file'],
-            'line'      => $error['line'],
-            'vars'      => $error['vars'],
             // 'backtrace' => array(), // only for fatal type errors, and only if xdebug is enabled
+            'category'  => 'warning',
             'continueToNormal' => true,
             'exception' => null,  // non-null if error is uncaught-exception
+            'file'      => $errorVals['file'],
             // 'hash'      => null,
             'isFirstOccur'  => true,
             'isSuppressed'  => false,
+            'line'      => $errorVals['line'],
+            'message'   => $errorVals['message'],
+            'type'      => E_WARNING,   // int
+            'typeStr'   => 'Warning',   // friendly string version of 'type'
+            'vars'      => $errorVals['vars'],
         );
-        $return = $this->errorHandler->handleError(
-            $error['type'],
-            $error['message'],
-            $error['file'],
-            $error['line'],
-            $error['vars']
-        );
-        self::assertFalse($return);
+        $error = $this->raiseError($errorVals);
+        self::assertFalse($error['return']);
+
         // test that last error works
         $lastError = $this->errorHandler->get('lastError');
         self::assertArraySubset($errorValuesExpect, $lastError->getValues());
@@ -290,10 +272,10 @@ class ErrorHandlerTest extends TestBase
     {
         $this->errorHandler->setCfg('errorReporting', E_WARNING | E_USER_WARNING);
         $error = $this->raiseError(array(
-            'type' => E_NOTICE,
-            'message' => 'not handled',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'not handled',
+            'type' => E_NOTICE,
         ));
         self::assertNull($error);
         $this->errorHandler->setCfg('errorReporting', E_ALL | E_NOTICE);
@@ -313,18 +295,18 @@ class ErrorHandlerTest extends TestBase
         $error = $this->errorHandler->getLastError();
         self::assertSame(
             array(
-                'type' => E_ERROR,
-                'message' => 'Uncaught exception \'Exception\' with message make an exception',
+                'exception' => $exception,
                 'file' => __FILE__,
                 'line' => $line,
-                'exception' => $exception,
+                'message' => 'Uncaught exception \'Exception\' with message make an exception',
+                'type' => E_ERROR,
             ),
             array(
-                'type' => $error['type'],
-                'message' => $error['message'],
+                'exception' => $error['exception'],
                 'file' => $error['file'],
                 'line' => $error['line'],
-                'exception' => $error['exception'],
+                'message' => $error['message'],
+                'type' => $error['type'],
             )
         );
     }
@@ -336,12 +318,11 @@ class ErrorHandlerTest extends TestBase
         \ini_set('error_log', $file);
 
         $this->errorHandler->unregister();
-        // \set_exception_handler(null);
         \restore_exception_handler();
         $this->errorHandler->register();
         $exception = new \Exception('I am exceptional');
         $line = __LINE__ - 1;
-        $this->errorHandler->setCfg('onError', function (Error $error) {
+        $this->errorHandler->setCfg('onError', static function (Error $error) {
             $error['continueToNormal'] = true;
         });
         $this->errorHandler->handleException($exception);
@@ -357,55 +338,38 @@ class ErrorHandlerTest extends TestBase
 
         self::assertSame(
             array(
-                'type' => E_ERROR,
-                'message' => 'Uncaught exception \'Exception\' with message I am exceptional',
+                'exception' => $exception,
                 'file' => __FILE__,
                 'line' => $line,
-                'exception' => $exception,
+                'message' => 'Uncaught exception \'Exception\' with message I am exceptional',
+                'type' => E_ERROR,
             ),
             array(
-                'type' => $error['type'],
-                'message' => $error['message'],
+                'exception' => $error['exception'],
                 'file' => $error['file'],
                 'line' => $error['line'],
-                'exception' => $error['exception'],
+                'message' => $error['message'],
+                'type' => $error['type'],
             )
         );
-    }
-
-    public function testHandleErrorWithAnonymousClass()
-    {
-        if (PHP_VERSION_ID < 70000) {
-            $this->markTestSkipped('anonymous classes are a php 7.0 thing');
-        }
-        self::$allowError = true;
-        $anonymous = require __DIR__ . '/Fixture/Anonymous.php';
-
-        $this->raiseError(array(
-            'type' => E_WARNING,
-            'message' => 'foo ' . \get_class($anonymous) . ' bar',
-            'file' => 'foo.bar',
-            'line' => 12,
-        ));
-        self::assertSame('foo stdClass@anonymous bar', $this->onErrorEvent['message']);
     }
 
     public function testOnFirstError()
     {
         $firstError = array();
-        $this->errorHandler->setCfg('onFirstError', function (Error $error) use (&$firstError) {
+        $this->errorHandler->setCfg('onFirstError', static function (Error $error) use (&$firstError) {
             $firstError = array(
-                'type' => $error['type'],
-                'message' => $error['message'],
-                'line' => $error['line'],
                 'file' => $error['file'],
+                'line' => $error['line'],
+                'message' => $error['message'],
+                'type' => $error['type'],
             );
         });
         $errorVals = array(
-            'type' => E_NOTICE,
-            'message' => 'first error!',
-            'line' => __LINE__,
             'file' => __FILE__,
+            'line' => __LINE__,
+            'message' => 'first error!',
+            'type' => E_NOTICE,
         );
         $this->raiseError($errorVals);
         $this->errorHandler->setCfg('onFirstError', null);
@@ -428,10 +392,10 @@ class ErrorHandlerTest extends TestBase
     public function testOnShutdownErrorNotFatal()
     {
         $errorVals = array(
-            'type' => E_NOTICE,
-            'message' => 'meh',
             'file' => __FILE__,
             'line' => __LINE__,
+            'message' => 'meh',
+            'type' => E_NOTICE,
         );
         $errorExpect = new Error($this->errorHandler, $errorVals);
         $event = $this->errorHandler->eventManager->publish(EventManager::EVENT_PHP_SHUTDOWN, null, array(
@@ -449,28 +413,28 @@ class ErrorHandlerTest extends TestBase
     {
         self::$allowError = true;
         $error = array(
-            'type' => E_ERROR,
             'file' => __FILE__,
             'line' => __LINE__,
             'message' => 'This is a bogus fatal error',
+            'type' => E_ERROR,
             'vars' => array(
                 'foo' => 'bar',
             ),
         );
         $errorValuesExpect = array(
-            'type'      => $error['type'],      // int
-            'typeStr'   => 'Fatal Error',       // friendly string version of 'type'
-            'category'  => 'fatal',
-            'message'   => $error['message'],
-            'file'      => $error['file'],
-            'line'      => $error['line'],
-            'vars'      => $error['vars'],
             // 'backtrace' => array(), // only if xdebug is enabled
+            'category'  => 'fatal',
             'continueToNormal' => true,
             'exception' => null,  // non-null if error is uncaught-exception
+            'file'      => $error['file'],
             // 'hash'      => null,
             'isFirstOccur'  => true,
             'isSuppressed'  => false,
+            'line'      => $error['line'],
+            'message'   => $error['message'],
+            'type'      => $error['type'],      // int
+            'typeStr'   => 'Fatal Error',       // friendly string version of 'type'
+            'vars'      => $error['vars'],
         );
         $callLine = __LINE__ + 1;
         $this->errorHandler->eventManager->publish(EventManager::EVENT_PHP_SHUTDOWN, null, array('error' => $error));
@@ -530,12 +494,12 @@ class ErrorHandlerTest extends TestBase
      */
     public function testSetCfg()
     {
-        $onErrorWas = $this->errorHandler->setCfg('onError', function (Error $error) {
+        $onErrorWas = $this->errorHandler->setCfg('onError', static function (Error $error) {
         });
         self::assertNull($onErrorWas);
         $subscribers = $this->errorHandler->eventManager->getSubscribers('onError');
         $count1 = \count($subscribers);
-        $onErrorWas = $this->errorHandler->setCfg('onError', function (Error $error) {
+        $onErrorWas = $this->errorHandler->setCfg('onError', static function (Error $error) {
         });
         self::assertInstanceOf('Closure', $onErrorWas);
         $subscribers = $this->errorHandler->eventManager->getSubscribers('onError');
@@ -573,38 +537,37 @@ class ErrorHandlerTest extends TestBase
 
     public function testThrowErrorException()
     {
-        try {
-            self::$allowError = true;
-            $this->errorHandler->setCfg('errorThrow', -1);
-            $errorVals = array(
-                'type' => E_USER_ERROR,
-                'message' => 'This is a test',
-                'file' => __FILE__,
-                'line' => __LINE__,
-            );
-            $backtraceLine = __LINE__ + 1;
-            $this->raiseError($errorVals);
-            $this->fail('ErrorException expected');
-        } catch (\ErrorException $e) {
-            self::assertSame($errorVals, array(
-                'type' => $e->getSeverity(),
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ));
-            $trace = $e->getTrace();
-            self::assertSame($errorVals['file'], $trace[1]['file']);
-            self::assertSame($backtraceLine, $trace[1]['line']);
-            PHP_VERSION_ID >= 70000
-                ? self::assertSame('bdk\\ErrorHandlerTests\\ErrorHandlerTest->raiseError', $trace[1]['function'])
-                : self::assertSame('bdk\\ErrorHandlerTests\\TestBase->raiseError', $trace[1]['function']);
-            self::assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[2]['function']);
-        }
+        self::$allowError = true;
+        $this->errorHandler->setCfg('errorThrow', -1);
         $errorVals = array(
-            'type' => E_NOTICE,
-            'message' => 'suppressed error',
+            'file' => __FILE__,
+            'line' => __LINE__,
+            'message' => 'This is a test',
+            'type' => E_USER_ERROR,
+        );
+        $backtraceLine = __LINE__ + 1;
+        $this->raiseError($errorVals);
+        $exception = $this->caughtException;
+
+        self::assertSame($errorVals, array(
+            'file' => $exception->getFile(),
+            'line' => $exception->getLine(),
+            'message' => $exception->getMessage(),
+            'type' => $exception->getSeverity(),
+        ));
+        $trace = $exception->getTrace();
+        self::assertSame($errorVals['file'], $trace[1]['file']);
+        self::assertSame($backtraceLine, $trace[1]['line']);
+        PHP_VERSION_ID >= 70000
+            ? self::assertSame('bdk\\Test\\ErrorHandler\\ErrorHandlerTest->raiseError', $trace[1]['function'])
+            : self::assertSame('bdk\\Test\\ErrorHandler\\TestBase->raiseError', $trace[1]['function']);
+        self::assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[2]['function']);
+
+        $errorVals = array(
             'file' => __FILE__,
             'line' => 42,
+            'message' => 'suppressed error',
+            'type' => E_NOTICE,
         );
         $error = $this->raiseError($errorVals, true);
         self::assertsame(
@@ -656,9 +619,8 @@ class ErrorHandlerTest extends TestBase
         parent::$allowError = true;
         $errorHandler = $this->errorHandler;
         $errorHandler->setCfg('onEUserError', 'continue');
-        $handleErrorCallable = array($errorHandler, 'handleError');
-        $return = \call_user_func_array($handleErrorCallable, $this->randoErrorVals(true));
-        self::assertTrue($return);
+        $error = $this->raiseError($this->randoErrorVals());
+        self::assertTrue($error['return']);
     }
 
     public function testOnUserErrorLog()
@@ -671,10 +633,10 @@ class ErrorHandlerTest extends TestBase
                 ->setConstructorArgs(array(
                     $handler,
                     array(
-                        'type' => $errType,
-                        'message' => $errMsg,
                         'file' => $file,
                         'line' => $line,
+                        'message' => $errMsg,
+                        'type' => $errType,
                         'vars' => $vars,
                     ),
                 ))
@@ -684,10 +646,9 @@ class ErrorHandlerTest extends TestBase
                 ->method('log');
             return $errorMock;
         });
-        $handleErrorCallable = array($errorHandler, 'handleError');
-        $return = \call_user_func_array($handleErrorCallable, $this->randoErrorVals(true));
+        $error = $this->raiseError($this->randoErrorVals());
         $errorHandler->setCfg('errorFactory', array($errorHandler, 'errorFactory'));
-        self::assertTrue($return);
+        self::assertTrue($error['return']);
     }
 
     public function testOnUserErrorStopPropagation()
@@ -700,10 +661,10 @@ class ErrorHandlerTest extends TestBase
                 ->setConstructorArgs(array(
                     $handler,
                     array(
-                        'type' => $errType,
-                        'message' => $errMsg,
                         'file' => $file,
                         'line' => $line,
+                        'message' => $errMsg,
+                        'type' => $errType,
                         'vars' => $vars,
                     ),
                 ))
@@ -713,10 +674,9 @@ class ErrorHandlerTest extends TestBase
                 ->method('log');
             return $errorMock;
         });
-        $handleErrorCallable = array($errorHandler, 'handleError');
-        $return = \call_user_func_array($handleErrorCallable, $this->randoErrorVals(true));
+        $error = $this->raiseError($this->randoErrorVals());
         $errorHandler->setCfg('errorFactory', array($errorHandler, 'errorFactory'));
-        self::assertTrue($return);
+        self::assertTrue($error['return']);
     }
 
     public function testOnUserErrorNormal()
@@ -724,9 +684,8 @@ class ErrorHandlerTest extends TestBase
         parent::$allowError = true;
         $errorHandler = $this->errorHandler;
         $errorHandler->setCfg('onEUserError', 'normal');
-        $handleErrorCallable = array($errorHandler, 'handleError');
-        $return = \call_user_func_array($handleErrorCallable, $this->randoErrorVals(true));
-        self::assertFalse($return);
+        $error = $this->raiseError($this->randoErrorVals());
+        self::assertFalse($error['return']);
     }
 
     public function testOnUserErrorNull()
@@ -734,23 +693,26 @@ class ErrorHandlerTest extends TestBase
         parent::$allowError = true;
         $errorHandler = $this->errorHandler;
         $errorHandler->setCfg('onEUserError', null);
-        $handleErrorCallable = array($errorHandler, 'handleError');
-        $return = \call_user_func_array($handleErrorCallable, $this->randoErrorVals(true));
-        self::assertTrue($return);
+        $error = $this->raiseError($this->randoErrorVals());
+        self::assertTrue($error['return']);
     }
 
     public function testOnUserErrorContinueToNormalFalse()
     {
         parent::$allowError = true;
-        $errorHandler = $this->errorHandler;
         $this->onErrorUpdate = array('continueToNormal' => false);
-        $handleErrorCallable = array($errorHandler, 'handleError');
-        $return = \call_user_func_array($handleErrorCallable, $this->randoErrorVals(true));
-        self::assertTrue($return);
+        $error = $this->raiseError($this->randoErrorVals());
+        self::assertTrue($error['return']);
     }
 
     public function errorHandler($type, $message, $file, $line)
     {
+        $this->prevErrorHandlerVals = array(
+            'type' => $type,
+            'message' => $message,
+            'file' => $file,
+            'line' => $line,
+        );
         return true;
     }
 

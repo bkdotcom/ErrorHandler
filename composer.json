@@ -18,21 +18,21 @@
     ],
     "autoload": {
         "classmap": [
-            "src/ErrorHandler.php"
+            "src/ErrorHandler/ErrorHandler.php"
         ],
         "psr-4": {
-            "bdk\\ErrorHandler\\": "src/"
+            "bdk\\ErrorHandler\\": "src/ErrorHandler"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "bdk\\ErrorHandlerTests\\": "tests/"
+            "bdk\\Test\\": "tests/"
         }
     },
     "require": {
         "php": ">=5.4.0",
-        "bdk/backtrace": "^2.2.1",
-        "bdk/pubsub": "^3.1.1"
+        "bdk/backtrace": "^2.2.2",
+        "bdk/pubsub": "^3.2"
     },
     "require-dev": {
         "bdk/devutil": "dev-master",

@@ -1,6 +1,6 @@
 <?php
 
-namespace bdk\ErrorHandlerTests;
+namespace bdk\Test\ErrorHandler;
 
 use bdk\ErrorHandler\Error;
 use bdk\ErrorHandler\Plugin\Emailer;
@@ -28,7 +28,7 @@ class EmailerTest extends TestBase
         parent::tearDown();
         $this->errorHandler->setCfg(array(
             'stats' => array(
-                'errorStatsFile' => __DIR__ . '/../src/Plugin/error_stats.json',
+                'errorStatsFile' => __DIR__ . '/../../src/Plugin/error_stats.json',
             ),
         ));
     }
@@ -91,7 +91,7 @@ class EmailerTest extends TestBase
                 self::assertSame(array(), $this->emailInfo);
 
                 /*
-                    Update the data so that the next time it appearas the error hasn't occured for a while
+                    Update the data so that the next time it appears as the error hasn't occurred for a while
                 */
                 $hash = $error['hash'];
                 $time6 = \strtotime('-6 hours');
@@ -145,6 +145,7 @@ class EmailerTest extends TestBase
             'HTTP_HOST' => 'www.test.com',
             'HTTP_REFERER' => 'www.github.com/bkdotcom/ErrorHandler',
             'REMOTE_ADDR' => '127.0.0.1',
+            'REQUEST_METHOD' => 'GET',
             'REQUEST_URI' => '/errorHandler/test',
             'SERVER_NAME' => 'test.com',
         ));
@@ -165,7 +166,8 @@ class EmailerTest extends TestBase
             . 'remote_addr: ' . $serverParams['REMOTE_ADDR'] . "\n"
             . 'http_host: ' . $serverParams['HTTP_HOST'] . "\n"
             . 'referer: ' . $serverParams['HTTP_REFERER'] . "\n"
-            . 'request_uri: ' . $serverParams['REQUEST_URI'] . "\n"
+            . 'request method: GET' . "\n"
+            . 'request uri: ' . $serverParams['REQUEST_URI'] . "\n"
             . 'post params: array (' . "\n"
             . '  \'foo\' => \'bar\',' . "\n"
             . ')' . "\n"
@@ -237,12 +239,8 @@ class EmailerTest extends TestBase
             'type' => E_WARNING,
         );
         $this->errorHandler->setCfg('errorThrow', E_WARNING);
-        $e = null;
-        try {
-            $this->raiseError($errorVals);
-        } catch (\ErrorException $e) {
-        }
-        self::assertNotNull($e);
+        $this->raiseError($errorVals);
+        self::assertNotNull($this->caughtException);
         self::assertSame(array(), $this->emailInfo);
         $this->errorHandler->setCfg('errorThrow', 0);
     }
@@ -340,7 +338,7 @@ class EmailerTest extends TestBase
                 . 'File: /path/to/file.php' . "\n"
                 . 'Line: 42' . "\n"
                 . 'Error: Warning: error message 2' . "\n"
-                . 'Has occured 123 times since ' . \date($this->errorHandler->emailer->getCfg('dateTimeFmt'), $ts24) . "\n"
+                . 'Has occurred 123 times since ' . \date($this->errorHandler->emailer->getCfg('dateTimeFmt'), $ts24) . "\n"
                 . '' . "\n",
             'addHeadersStr' => 'From: php@test.com',
         ), $this->emailInfo);

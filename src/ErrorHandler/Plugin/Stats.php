@@ -4,7 +4,7 @@
  * @package   bdk\ErrorHandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
- * @copyright 2014-2023 Brad Kent
+ * @copyright 2014-2024 Brad Kent
  * @version   v3.2
  */
 
@@ -14,6 +14,7 @@ use bdk\ErrorHandler;
 use bdk\ErrorHandler\AbstractComponent;
 use bdk\ErrorHandler\Error;
 use bdk\ErrorHandler\Plugin\StatsStoreFile;
+use bdk\ErrorHandler\Plugin\StatsStoreInterface;
 use bdk\PubSub\SubscriberInterface;
 
 /**
@@ -23,6 +24,7 @@ use bdk\PubSub\SubscriberInterface;
  */
 class Stats extends AbstractComponent implements SubscriberInterface
 {
+    /** @var StatsStoreInterface */
     protected $dataStore;
 
     /**
@@ -80,8 +82,8 @@ class Stats extends AbstractComponent implements SubscriberInterface
 
     /**
      * Return list of errors that have
-     * not occured since their cutoff
-     * have occured since their last email
+     * not occurred since their cutoff
+     * have occurred since their last email
      *
      * @return array
      */
@@ -107,7 +109,7 @@ class Stats extends AbstractComponent implements SubscriberInterface
         $errorStats = $this->dataStore->findByError($error);
         if ($errorStats) {
             unset($errorStats['info']);
-            $errorStats['count'] ++;
+            $errorStats['count']++;
             $error['stats'] = \array_merge($error['stats'], $errorStats);
         }
     }
@@ -131,8 +133,6 @@ class Stats extends AbstractComponent implements SubscriberInterface
      * @param array $prev previous config values
      *
      * @return void
-     *
-     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     protected function postSetCfg($cfg = array(), $prev = array())
     {
