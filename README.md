@@ -2,7 +2,7 @@ ErrorHandler
 ===============
 
 ### Installation
-This library supports PHP 5.4 - 8.3 and has no userland dependencies.
+This library supports PHP 5.4 - 8.3.
 
 It is installable and autoloadable via [Composer](https://getcomposer.org/) as [bdk/errorhandler](https://packagist.org/packages/bdk/errorhandler).
 
