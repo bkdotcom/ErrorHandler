@@ -5,7 +5,7 @@
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright 2014-2024 Brad Kent
- * @version   v3.3
+ * @since     v3.3
  */
 
 namespace bdk\ErrorHandler;
@@ -28,6 +28,7 @@ class AbstractComponent
 
     /**
      * Magic getter
+     *
      * Get inaccessible / undefined properties
      * Lazy load child classes
      *
@@ -113,8 +114,8 @@ class AbstractComponent
     /**
      * Set one or more config values
      *
-     *    setCfg('key', 'value')
-     *    setCfg(array('k1'=>'v1', 'k2'=>'v2'))
+     *     setCfg('key', 'value')
+     *     setCfg(array('k1'=>'v1', 'k2'=>'v2'))
      *
      * Calls self::postSetCfg() with new values and previous values
      *
