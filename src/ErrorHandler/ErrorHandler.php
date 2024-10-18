@@ -53,10 +53,10 @@ class ErrorHandler extends AbstractErrorHandler
         $this->cfg = array(
             'continueToPrevHandler' => true,    // whether to continue to previously defined handler (if there is/was a prev handler)
                                                 //   prev handler will not be called if error event propagation stopped
-            'errorFactory' => array($this, 'errorFactory'),
-            'errorReporting' => E_ALL | E_STRICT,   // what errors are handled by handler?
-                                                    //   bitmask or "system" to use runtime value
-                                                    //   note: if using "system", suppressed errors (via @ operator) will not be handled (we'll still handle fatal category)
+            'errorFactory' => [$this, 'errorFactory'],
+            'errorReporting' => E_ALL,  // what errors are handled by handler?
+                                        //   bitmask or "system" to use runtime value
+                                        //   note: if using "system", suppressed errors (via @ operator) will not be handled (we'll still handle fatal category)
             'errorThrow' => 0,          // bitmask: error types that should converted to ErrorException and thrown
             'onError' => null,          // callable : shortcut for subscribing to errorHandler.error Event
                                         //   will receive error Event object
@@ -93,7 +93,7 @@ class ErrorHandler extends AbstractErrorHandler
         }
         $this->setCfg($cfg);
         $this->register();
-        $this->eventManager->subscribe(EventManager::EVENT_PHP_SHUTDOWN, array($this, 'onShutdown'), PHP_INT_MAX);
+        $this->eventManager->subscribe(EventManager::EVENT_PHP_SHUTDOWN, [$this, 'onShutdown'], PHP_INT_MAX);
         $this->setData('errorReportingInitial', $this->errorReporting());
     }
 
@@ -108,7 +108,7 @@ class ErrorHandler extends AbstractErrorHandler
             ? \error_reporting() // note: error could be "suppressed"
             : $this->cfg['errorReporting'];
         if ($errorReporting === -1) {
-            $errorReporting = E_ALL | E_STRICT;
+            $errorReporting = E_ALL;
         }
         return $errorReporting;
     }
@@ -297,12 +297,12 @@ class ErrorHandler extends AbstractErrorHandler
     public function register()
     {
         $errHandlerCur = $this->getErrorHandler();
-        if ($errHandlerCur !== array($this, 'handleError')) {
+        if ($errHandlerCur !== [$this, 'handleError']) {
             $this->prevErrorHandler = \set_error_handler(array($this, 'handleError'));
         }
 
         $exHandlerCur = $this->getExceptionHandler();
-        if ($exHandlerCur !== array($this, 'handleException')) {
+        if ($exHandlerCur !== [$this, 'handleException']) {
             $this->prevExceptionHandler = \set_exception_handler(array($this, 'handleException'));
         }
 
@@ -357,13 +357,13 @@ class ErrorHandler extends AbstractErrorHandler
     public function unregister()
     {
         $errHandlerCur = $this->getErrorHandler();
-        if ($errHandlerCur === array($this, 'handleError')) {
+        if ($errHandlerCur === [$this, 'handleError']) {
             // we are the current error handler
             \restore_error_handler();
         }
 
         $exHandlerCur = $this->getExceptionHandler();
-        if ($exHandlerCur === array($this, 'handleException')) {
+        if ($exHandlerCur === [$this, 'handleException']) {
             // we are the current exception handler
             \restore_exception_handler();
         }

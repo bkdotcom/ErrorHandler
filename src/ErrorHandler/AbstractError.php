@@ -30,12 +30,12 @@ class AbstractError extends Event
 
     /** @var array<string,list<int>> */
     protected static $errCategories = array(
-        self::CAT_DEPRECATED => array( E_DEPRECATED, E_USER_DEPRECATED ),
-        self::CAT_ERROR      => array( E_USER_ERROR, E_RECOVERABLE_ERROR ),
-        self::CAT_FATAL      => array( E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR ),
-        self::CAT_NOTICE     => array( E_NOTICE, E_USER_NOTICE ),
-        self::CAT_STRICT     => array( E_STRICT ),
-        self::CAT_WARNING    => array( E_WARNING, E_CORE_WARNING, E_COMPILE_WARNING, E_USER_WARNING ),
+        self::CAT_DEPRECATED => [E_DEPRECATED, E_USER_DEPRECATED],
+        self::CAT_ERROR      => [E_USER_ERROR, E_RECOVERABLE_ERROR],
+        self::CAT_FATAL      => [E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR],
+        self::CAT_NOTICE     => [E_NOTICE, E_USER_NOTICE],
+        self::CAT_STRICT     => [2048], // E_STRICT raises deprecation notice as of php 8.4
+        self::CAT_WARNING    => [E_WARNING, E_CORE_WARNING, E_COMPILE_WARNING, E_USER_WARNING],
     );
 
     /** @var array<int,string> */
@@ -50,7 +50,7 @@ class AbstractError extends Event
         E_NOTICE            => 'Notice',
         E_PARSE             => 'Parsing Error',     // handled via shutdown function
         E_RECOVERABLE_ERROR => 'Recoverable Error', // php 5.2 :  4096
-        E_STRICT            => 'Strict',            // php 5.0 :  2048
+        2048                => 'Strict',            // php 5.0 :  2048; deprecated as of php 8.5
         E_USER_DEPRECATED   => 'User Deprecated',   // php 5.3 : 16384
         E_USER_ERROR        => 'User Error',
         E_USER_NOTICE       => 'User Notice',
@@ -59,12 +59,12 @@ class AbstractError extends Event
     );
 
     /** @var list<int> */
-    protected static $userErrors = array(
+    protected static $userErrors = [
         E_USER_DEPRECATED,
         E_USER_ERROR,
         E_USER_NOTICE,
         E_USER_WARNING,
-    );
+    ];
 
     /**
      * Store fatal non-Exception backtrace
@@ -145,7 +145,7 @@ class AbstractError extends Event
      */
     private function assertValues($values)
     {
-        $keysMustHave = array('type', 'message', 'file', 'line');
+        $keysMustHave = ['type', 'message', 'file', 'line'];
         $values = \array_merge($this->values, $values);
         $valuesCheck = \array_intersect_key($values, \array_flip($keysMustHave));
         $keys = \array_keys(\array_filter($valuesCheck, static function ($val) {
@@ -154,7 +154,7 @@ class AbstractError extends Event
         if (\array_intersect($keysMustHave, $keys) !== $keysMustHave) {
             throw new InvalidArgumentException('Error values must include: type, message, file, & line');
         }
-        $validTypes = \array_diff_key(self::$errTypes, \array_flip(array(E_ALL)));
+        $validTypes = \array_diff_key(self::$errTypes, \array_flip([E_ALL]));
         if (\array_key_exists($values['type'], $validTypes) === false) {
             throw new InvalidArgumentException('invalid error type specified');
         }
@@ -184,7 +184,7 @@ class AbstractError extends Event
             $this->values['file'] = $matches[1];
             $this->values['line'] = (int) $matches[2];
         }
-        if ($this->backtrace === null && \in_array($this->values['type'], array(E_ERROR, E_USER_ERROR), true) && $this->values['exception'] === null) {
+        if ($this->backtrace === null && \in_array($this->values['type'], [E_ERROR, E_USER_ERROR], true) && $this->values['exception'] === null) {
             // will return empty unless xdebug extension installed/enabled
             $this->backtrace = $this->subject->backtrace->get();
         }
@@ -218,7 +218,7 @@ class AbstractError extends Event
     {
         $this->values = \array_merge(
             $this->values,
-            \array_intersect_key($values, \array_flip(array('type', 'message', 'file', 'line')))
+            \array_intersect_key($values, \array_flip(['type', 'message', 'file', 'line']))
         );
         $this->setValuesInitDefault();
         $this->values = \array_merge($this->values, $values);
@@ -249,7 +249,6 @@ class AbstractError extends Event
     private function setValuesInitDefault()
     {
         $errType = $this->values['type'];
-        $prevOccurrence = $this->subject->get('error', $this->values['hash']);
         $isSuppressed = $this->valIsSuppressed();
         $this->values['hash'] = $this->valHash();
         $this->values['category'] = $this->valCategory();
@@ -257,7 +256,7 @@ class AbstractError extends Event
             'continueToNormal' => $this->valContinueToNormal($isSuppressed),
             'continueToPrevHandler' => $this->subject->getCfg('continueToPrevHandler'),
             'exception' => $this->subject->get('uncaughtException'),  // non-null if error is uncaught-exception
-            'isFirstOccur' => $prevOccurrence === null,
+            'isFirstOccur' => $this->subject->get('error', $this->values['hash']) === null,
             'isSuppressed' => $isSuppressed,
             'throw' => $this->isFatal() === false && ($errType & $this->subject->getCfg('errorThrow')) === $errType,
         ));
@@ -314,12 +313,14 @@ class AbstractError extends Event
     private function valHash()
     {
         $errMsg = $this->values['message'];
-        // (\(.*?)\d+(.*?\))    "(tried to allocate 16384 bytes)" -> "(tried to allocate xxx bytes)"
-        $errMsg = \preg_replace('/(\(.*?)\d+(.*?\))/', '\1x\2', $errMsg);
-        // "blah123" -> "blahxxx"
-        $errMsg = \preg_replace('/\b([a-z]+\d+)+\b/', 'xxx', $errMsg);
-        // "-123.123" -> "xxx"
-        $errMsg = \preg_replace('/\b[\d.-]{4,}\b/', 'xxx', $errMsg);
+        $dirParts = \array_slice(\explode(DIRECTORY_SEPARATOR, __DIR__), 0, 3);
+        $dirStart = \implode(DIRECTORY_SEPARATOR, $dirParts);
+        // remove paths from message
+        $errMsg = \preg_replace('/' . \preg_quote($dirStart, '/') . '[\S:]*/', $dirStart . '...', $errMsg);
+        // remove floats: "-123.123" -> "###"
+        $errMsg = \preg_replace('/\b[\d.-]{4,}\b/', '###', $errMsg);
+        // remove integers:  "123" -> "###"
+        $errMsg = \preg_replace('/\d+/', '###', $errMsg);
         // remove "comments"..  this allows throttling email, while still adding unique info to user errors
         $errMsg = \preg_replace('/\s*##.+$/', '', $errMsg);
         return \md5($this->values['file'] . $this->values['line'] . $this->values['type'] . $errMsg);
