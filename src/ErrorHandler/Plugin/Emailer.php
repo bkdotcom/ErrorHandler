@@ -155,6 +155,35 @@ class Emailer extends AbstractComponent implements SubscriberInterface
     }
 
     /**
+     * Dump backtrace to plain-text
+     *
+     * @param array $trace Backtrace
+     *
+     * @return string
+     */
+    private function backtraceDumperDefault($trace)
+    {
+        $search = [
+            ")\n\n",
+        ];
+        $replace = [
+            ")\n",
+        ];
+        foreach ($trace as $i => $frame) {
+            if (!empty($frame['context'])) {
+                // remove newlines from context
+                $frame[$i]['context'] = \array_map('rtrim', $frame['context']);
+            }
+        }
+        $str = \print_r($trace, true);
+        $str = \preg_replace('#\bArray\n\s*\(#', 'array(', $str);
+        $str = \preg_replace('/\barray\s+\(\s+\)/s', 'array()', $str); // single-lineify empty arrays
+        $str = \str_replace($search, $replace, $str);
+        $str = \substr($str, 0, -1);
+        return $str;
+    }
+
+    /**
      * Get formatted backtrace string for error
      *
      * @param Error $error Error instance
@@ -172,21 +201,9 @@ class Emailer extends AbstractComponent implements SubscriberInterface
         if ($error['vars']) {
             $backtrace[0]['vars'] = $error['vars'];
         }
-        if ($this->cfg['emailBacktraceDumper']) {
-            return \call_user_func($this->cfg['emailBacktraceDumper'], $backtrace);
-        }
-        $search = [
-            ")\n\n",
-        ];
-        $replace = [
-            ")\n",
-        ];
-        $str = \print_r($backtrace, true);
-        $str = \preg_replace('#\bArray\n\(#', 'array(', $str);
-        $str = \preg_replace('/\barray\s+\(\s+\)/s', 'array()', $str); // single-lineify empty arrays
-        $str = \str_replace($search, $replace, $str);
-        $str = \substr($str, 0, -1);
-        return $str;
+        return $this->cfg['emailBacktraceDumper']
+            ? \call_user_func($this->cfg['emailBacktraceDumper'], $backtrace)
+            : $this->backtraceDumperDefault($backtrace);
     }
 
     /**
