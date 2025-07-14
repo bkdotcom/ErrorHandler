@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @package   bdk\ErrorHandler
+ * @package   bdk/errorhandler
  * @author    Brad Kent <bkfake-github@yahoo.com>
  * @license   http://opensource.org/licenses/MIT MIT
  * @copyright 2014-2025 Brad Kent
@@ -413,13 +413,7 @@ class ErrorHandler extends AbstractErrorHandler
     }
 
     /**
-     * Handle E_USER_ERROR and E_RECOVERABLE_ERROR
-     *
-     * Log user error if cfg['onEUserError'] === 'log' and propagation not stopped
-     *
-     * @param Error $error Error instance
-     *
-     * @return void
+     * {@inheritDoc}
      */
     protected function handleUserError(Error $error)
     {
