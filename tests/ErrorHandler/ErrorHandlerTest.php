@@ -14,7 +14,7 @@ use bdk\PubSub\Manager as EventManager;
  * @covers \bdk\ErrorHandler\AbstractErrorHandler
  * @covers \bdk\ErrorHandler\Error
  */
-class ErrorHandlerTest extends TestBase
+class ErrorHandlerTest extends AbstractTestCase
 {
     protected $prevErrorHandlerVals = array();
 
@@ -35,14 +35,18 @@ class ErrorHandlerTest extends TestBase
             return;
         }
         $emailerRef = new \ReflectionProperty('\\bdk\\ErrorHandler\\AbstractErrorHandler', 'emailer');
-        $emailerRef->setAccessible(true);
+        if (PHP_VERSION_ID < 80100) {
+            $emailerRef->setAccessible(true);
+        }
         $emailer = $emailerRef->getValue($errorHandler);
         if ($emailer) {
             $errorHandler->eventManager->removeSubscriberInterface($emailer);
             $emailerRef->setValue($errorHandler, null);
         }
         $statsRef = new \ReflectionProperty('\\bdk\\ErrorHandler\\AbstractErrorHandler', 'stats');
-        $statsRef->setAccessible(true);
+        if (PHP_VERSION_ID < 80100) {
+            $statsRef->setAccessible(true);
+        }
         $stats = $statsRef->getValue($errorHandler);
         if ($stats) {
             $errorHandler->eventManager->removeSubscriberInterface($stats);
@@ -53,7 +57,9 @@ class ErrorHandlerTest extends TestBase
     public function testConstructor()
     {
         $instanceRef = new \ReflectionProperty('bdk\\ErrorHandler', 'instance');
-        $instanceRef->setAccessible(true);
+        if (PHP_VERSION_ID < 80100) {
+            $instanceRef->setAccessible(true);
+        }
         $instanceRef->setValue(null, null);
         $errorHandler = new ErrorHandler($this->errorHandler->eventManager);
         $instanceRef->setValue(null, $this->errorHandler);
@@ -153,7 +159,9 @@ class ErrorHandlerTest extends TestBase
     public function testGetMagic()
     {
         $propRef = new \ReflectionProperty('\\bdk\\ErrorHandler\\AbstractErrorHandler', 'backtrace');
-        $propRef->setAccessible(true);
+        if (PHP_VERSION_ID < 80100) {
+            $propRef->setAccessible(true);
+        }
         $propRef->setValue($this->errorHandler, null);
         self::assertInstanceOf('\\bdk\\Backtrace', $this->errorHandler->backtrace);
         self::assertSame(null, $this->errorHandler->noSuchProperty);
@@ -221,7 +229,9 @@ class ErrorHandlerTest extends TestBase
         self::assertSame('dong', $errorHandler->getCfg('ding'));
 
         $instanceRef = new \ReflectionProperty($errorHandler, 'instance');
-        $instanceRef->setAccessible(true);
+        if (PHP_VERSION_ID < 80100) {
+            $instanceRef->setAccessible(true);
+        }
         $instanceRef->setValue($errorHandler, null);
         self::assertFalse($class::getInstance());
         $instanceRef->setValue($errorHandler, $errorHandler);
@@ -559,9 +569,9 @@ class ErrorHandlerTest extends TestBase
         $trace = $exception->getTrace();
         self::assertSame($errorVals['file'], $trace[1]['file']);
         self::assertSame($backtraceLine, $trace[1]['line']);
-        PHP_VERSION_ID >= 70000
+        PHP_VERSION_ID >= 70000 && PHP_VERSION_ID < 80500
             ? self::assertSame('bdk\\Test\\ErrorHandler\\ErrorHandlerTest->raiseError', $trace[1]['function'])
-            : self::assertSame('bdk\\Test\\ErrorHandler\\TestBase->raiseError', $trace[1]['function']);
+            : self::assertSame('bdk\\Test\\ErrorHandler\\AbstractTestCase->raiseError', $trace[1]['function']);
         self::assertSame(__CLASS__ . '->' . __FUNCTION__, $trace[2]['function']);
 
         $errorVals = array(
